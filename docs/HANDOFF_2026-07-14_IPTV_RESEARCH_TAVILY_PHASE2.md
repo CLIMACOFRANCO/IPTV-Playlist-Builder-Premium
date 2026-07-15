@@ -303,6 +303,105 @@ El indicador actual `precision_proxy` es metodologicamente cuestionable porque c
 accepted / total_results
 ```
 
+## 13A. Cierre posterior del micro-piloto de familias de dominio Voco TV (2026-07-15)
+
+### Alcance y autorizacion excepcional
+
+Se autorizo de forma excepcional un micro-piloto real, acotado a Voco TV, mediante el runner independiente `scripts\discover_iptv_domain_families.py`. Esta autorizacion no habilito el lote 2, no determino un dominio oficial y no amplio la autorizacion a otras marcas o consultas.
+
+El run real que debe preservarse es:
+
+- `research\output\best_iptv_2026\domain_family_discovery_voco_micro_pilot\run_20260715_023727\`
+
+### Primera ejecucion real
+
+- Se realizaron 12 llamadas Tavily.
+- Nueve consultas terminaron correctamente y produjeron 72 resultados reales.
+- `voco_df_01_identity_variants` fallo tres veces porque la consulta superaba el limite de 400 caracteres.
+- Los 72 resultados iniciales quedaron preservados mediante checkpoint y artefactos del run.
+- Ninguna consulta ya completada se repitio durante la reparacion posterior.
+
+### Correccion offline y controles preventivos
+
+- Q1 se redujo a 255 caracteres, conservando la intencion de identidad y variantes.
+- Se incorporo un preflight obligatorio con maximo de 400 caracteres para todas las consultas.
+- Los errores deterministas, incluidos query demasiado largo, parametros invalidos, autenticacion y solicitudes mal formadas, se clasifican como no reintentables.
+- Se incorporo un modo repair exclusivo para una consulta explicitamente seleccionada en estado `FAILED`.
+- El modo repair rechaza consultas `COMPLETED`, cambios incompatibles en otras consultas y selecciones ambiguas.
+- La validacion offline paso con 87 de 87 autopruebas y 13 de 13 comprobaciones del plan.
+
+### Reparacion real de Q1
+
+- Consulta reparada: `voco_df_01_identity_variants`.
+- Motivo: `QUERY_LENGTH_LIMIT`.
+- Estado final: `COMPLETED`.
+- Intentos anteriores: 3.
+- Intentos de reparacion: 1 segun el checkpoint por consulta.
+- Resultados nuevos: 8.
+- Llamadas de red de la reparacion: 1.
+- Llamadas Tavily de la reparacion: 1.
+- Exit code: 0.
+- Estado del run: `EXECUTION_COMPLETED`.
+- `resumed_run`: true.
+- `checkpoint_reused`: true.
+- Resultados historicos: 72.
+- Resultados combinados: 80.
+- Duplicados eliminados durante resume: 0.
+- Consultas discovery completadas: 8 de 8.
+- Controles completados: 2 de 2.
+- `technical_failure` final: false, respaldado por el estado completo de las diez consultas y `EXECUTION_COMPLETED`.
+
+Caveat de serializacion: el campo superior `repair_attempts` del manifest permanece en 0, pero el checkpoint de Q1 registra `repair_attempts: 1` y `attempts: 1`. Para el intento de la consulta reparada, el checkpoint es la fuente granular autoritativa. No se modifico el run para corregir retrospectivamente este detalle.
+
+### Metricas finales automaticas
+
+- `raw_result_count_discovery`: 64.
+- `known_domain_recovery_rate`: 0.375.
+- `spontaneous_vocotv_ai_recovery`: FALSE.
+- `new_candidate_domain_count`: 14.
+- `relevant_domain_precision`: 0.13178294573643412 (13.18 %).
+- `hotel_noise_rate`: 0.0.
+- `dental_noise_rate`: 0.0.
+- `linked_domain_count`: 110.
+- `new_useful_relationship_count`: 186.
+- `domain_family_expansion_index`: 25.0.
+- `unresolved_identity_rate`: 0.0.
+- `duplicate_rate`: 0.359375.
+- Rendimiento util de Q1: 0.
+
+### Veredictos y decision humana
+
+- `SAFETY_VERDICT`: `SAFETY_PASS`.
+- `DISCOVERY_VERDICT`: `DISCOVERY_PARTIAL_LOW_PRECISION`.
+- El veredicto automatico `V3_UTILITY_PASS` no se acepta como conclusion definitiva.
+- Dictamen operativo: `V3_UTILITY_REQUIRES_FINAL_AUDIT`.
+- La precision de 13.18 %, la ausencia de recuperacion espontanea de `vocotv.ai` y el rendimiento util cero de Q1 impiden aprobar la utilidad real de V3 sin auditoria final.
+- No existe un dominio oficial confirmado.
+- El lote 2 permanece bloqueado.
+
+### Artefactos y politica de versionado
+
+- Auditoria offline existente: `research\output\best_iptv_2026\domain_family_discovery_voco_micro_pilot\audit_run_20260715_023727\`.
+- Dry-run final: `research\output\best_iptv_2026\domain_family_discovery_voco_micro_pilot\dry_run_20260715_025410\`.
+- La politica actual ignora todo `research\`; por tanto, el run real, la auditoria y el dry-run se preservan localmente y no se fuerzan en Git.
+- Los artefactos versionables deliberados de este cierre son el runner y este handoff unico.
+- El PID 28448 se considera un probable proceso huerfano y no fue terminado.
+- La API key estaba disponible en el entorno para la ejecucion autorizada, pero su valor no se registro ni debe incluirse en ningun artefacto.
+- Durante este cierre documental se realizaron cero llamadas Tavily, cero llamadas de red de investigacion y se consumieron cero creditos adicionales.
+
+### Proxima tarea unica
+
+Auditar offline los 80 registros finales combinados y recalcular:
+
+- candidatos realmente relevantes;
+- relaciones realmente utiles;
+- precision real;
+- clasificacion operator, reseller, infrastructure y noise;
+- utilidad real de V3;
+- valor marginal de Q1.
+
+No ejecutar nuevas consultas. No autorizar el lote 2 hasta completar esta auditoria final.
+
 Ese calculo penalizaba los resultados correctamente rechazados. Por eso se creo una auditoria real sobre las evidencias retenidas que calcula:
 
 - `acceptance_rate`

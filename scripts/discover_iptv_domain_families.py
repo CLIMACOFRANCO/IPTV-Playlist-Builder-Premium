@@ -20,6 +20,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import sys
 import time
 import tempfile
@@ -39,6 +40,7 @@ DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / "research" / "output" / "best_iptv_2026" / 
 LOGIC_VERSION = "domain_family_discovery_voco_v1.1"
 CHECKPOINT_SCHEMA_VERSION = "domain_family_checkpoint_v1"
 ALLOWED_MAX_RESULTS = 8
+MAXIMUM_QUERY_LENGTH = 400
 RECOMMENDED_DISCOVERY_QUERIES = 8
 RECOMMENDED_CONTROL_QUERIES = 2
 RECOMMENDED_TOTAL_QUERIES = 10
@@ -426,6 +428,60 @@ def contains_any(text: str, terms: list[str]) -> list[str]:
     return [term for term in terms if term_matches(text, term)]
 
 
+def is_nonempty_identifier(value: Any) -> bool:
+    if not isinstance(value, str) or not value.strip():
+        return False
+    stripped = value.strip()
+    if any(unicodedata.category(ch) == "Cc" for ch in stripped):
+        return False
+    return re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}", stripped) is not None
+
+
+def assess_noise_context(text_blob: str, canonical: dict[str, Any], extracted: dict[str, Any]) -> dict[str, Any]:
+    hard_hotel_signals = contains_any(
+        text_blob,
+        ["IHG", "InterContinental Hotels Group", "hotel-online", "IHG careers", "Voco hotel"],
+    )
+    soft_hospitality_signals = contains_any(text_blob, CONTEXTUAL_SOFT_NEGATIVES)
+    dental_signals = contains_any(text_blob, ["voco.dental", "dental", "dentist", "dentistry", "odontologia"])
+    strong_iptv_signals = contains_any(
+        text_blob,
+        ["IPTV", "M3U", "Xtream", "subscription", "plans", "channels", "VOD", "IPTV app", "IPTV player", "activation"],
+    )
+    domain = canonical.get("canonical_hostname") or ""
+    same_domain_email = bool(domain and domain in (extracted.get("email_domains", {}).get("value") or []))
+    identity_signals = []
+    if same_domain_email:
+        identity_signals.append("same_domain_email")
+    if extracted.get("support_terms", {}).get("value") and domain:
+        identity_signals.append("attributable_support")
+    if extracted.get("login_activation_terms", {}).get("value"):
+        identity_signals.append("login_or_activation")
+    if extracted.get("app_download_terms", {}).get("value"):
+        identity_signals.append("app_or_download")
+    if extracted.get("checkout_terms", {}).get("value") or extracted.get("payment_terms", {}).get("value"):
+        identity_signals.append("checkout_or_payment")
+    if extracted.get("legal_entity_indicators", {}).get("value"):
+        identity_signals.append("legal_or_corporate_indicator")
+    explicit_iptv = term_matches(text_blob, "IPTV") or term_matches(text_blob, "M3U") or term_matches(text_blob, "Xtream")
+    robust_iptv_context = bool(explicit_iptv and (len(strong_iptv_signals) >= 2 or identity_signals))
+    mixed_weak_context = bool(soft_hospitality_signals and explicit_iptv and not robust_iptv_context)
+    hard_irrelevant = bool(dental_signals or hard_hotel_signals or (soft_hospitality_signals and not explicit_iptv))
+    requires_context_review = bool(soft_hospitality_signals and explicit_iptv and not hard_hotel_signals and not dental_signals)
+    fields = {
+        "hard_hotel_signals": hard_hotel_signals,
+        "soft_hospitality_signals": soft_hospitality_signals,
+        "dental_signals": dental_signals,
+        "strong_iptv_signals": strong_iptv_signals,
+        "identity_signals": identity_signals,
+        "robust_iptv_context": robust_iptv_context,
+        "mixed_weak_context": mixed_weak_context,
+        "hard_irrelevant": hard_irrelevant,
+        "requires_context_review": requires_context_review,
+    }
+    return fields
+
+
 def extract_counts(text: str) -> list[str]:
     pattern = re.compile(r"\b\d{2,6}\s*(?:channels?|live channels?|vod|movies?|series)\b", re.IGNORECASE)
     return sorted({re.sub(r"\s+", " ", match.strip()) for match in pattern.findall(text or "")})
@@ -520,7 +576,7 @@ def extract_observable_fields(text_blob: str, canonical: dict[str, Any]) -> dict
     address_indicators = extract_addresses(text_blob)
     prices = extract_prices(text_blob)
     product_counts = extract_counts(text_blob)
-    return {
+    fields = {
         "emails": observation(emails, "EXTRACTED_FROM_CONTENT", "content/raw_content", text_blob),
         "email_domains": observation(email_domains, "EXTRACTED_FROM_CONTENT", "emails", text_blob),
         "phones": observation(phones, "EXTRACTED_FROM_CONTENT", "content/raw_content", text_blob),
@@ -543,6 +599,8 @@ def extract_observable_fields(text_blob: str, canonical: dict[str, Any]) -> dict
         "prices": observation(prices, "EXTRACTED_FROM_CONTENT", "content/raw_content", text_blob),
         "product_counts": observation(product_counts, "EXTRACTED_FROM_CONTENT", "content/raw_content", text_blob),
     }
+    fields["noise_context"] = observation(assess_noise_context(text_blob, canonical, fields), "EXTRACTED_FROM_CONTENT", "content/raw_content", text_blob)
+    return fields
 
 
 def extract_addresses(text: str) -> list[str]:
@@ -588,6 +646,10 @@ def infer_role_candidates(
     if extracted["support_terms"]["value"] and (domain and any(domain in value for value in (extracted["urls"]["value"] or []))):
         infrastructure_signals.append("support_on_same_domain")
     nominal_domain = bool(domain and any(token in domain for token in ("voco", "iptv")))
+    noise_context = extracted.get("noise_context", {}).get("value") or assess_noise_context(text_blob, canonical, extracted)
+    hard_irrelevant = bool(noise_context.get("hard_irrelevant"))
+    contextual_review = bool(noise_context.get("requires_context_review"))
+    robust_iptv_context = bool(noise_context.get("robust_iptv_context"))
     confirmed_reseller = bool(explicit_reseller_terms and not promotional_source)
     possible_reseller = bool(reseller_terms and not confirmed_reseller)
     if possible_reseller:
@@ -602,17 +664,19 @@ def infer_role_candidates(
         roles.append(role("SUPPORT_PORTAL", "LOW", "support/contact terminology observed", extracted["support_terms"]))
     if extracted["app_download_terms"]["value"] or extracted["login_activation_terms"]["value"]:
         roles.append(role("APP_OR_DOWNLOAD_DOMAIN", "LOW", "app/download/login terminology observed", extracted["app_download_terms"]))
-    if brand_signal and iptv_signal and not extracted["ihg_hotel_signals"]["value"] and not extracted["dental_signals"]["value"]:
+    if brand_signal and iptv_signal and not hard_irrelevant:
         signals.extend(["brand_alias", "iptv_context"])
         if nominal_domain:
             signals.append("domain_name_context")
         signals.extend(infrastructure_signals)
         if confirmed_reseller and infrastructure_signals:
             roles.append(role("POSSIBLE_MASTER_DISTRIBUTOR", "MEDIUM", "reseller program plus infrastructure signals; not officiality", observation(signals, "EXTRACTED_FROM_CONTENT", "content/raw_content", text_blob)))
-        elif not confirmed_reseller and not promotional_source and nominal_domain and len(infrastructure_signals) >= 1:
+        elif not confirmed_reseller and not promotional_source and nominal_domain and len(infrastructure_signals) >= 1 and (not contextual_review or robust_iptv_context):
             roles.append(role("POSSIBLE_BRAND_OPERATOR", "MEDIUM", "nominal domain plus attributable brand/IPTV and infrastructure signals; not officiality", observation(signals, "EXTRACTED_FROM_CONTENT", "content/raw_content", text_blob)))
-    if extracted["ihg_hotel_signals"]["value"] or extracted["dental_signals"]["value"]:
-        roles.append(role("HOMONYM_OR_IRRELEVANT", "HIGH", "hotel/IHG/dental noise signal observed", observation(extracted["ihg_hotel_signals"]["value"] + extracted["dental_signals"]["value"], "EXTRACTED_FROM_CONTENT", "content/raw_content", text_blob)))
+    if hard_irrelevant:
+        roles.append(role("HOMONYM_OR_IRRELEVANT", "HIGH", "hard hotel/IHG/dental or clearly non-IPTV hospitality signal observed", observation(noise_context, "EXTRACTED_FROM_CONTENT", "content/raw_content", text_blob)))
+    elif contextual_review:
+        roles.append(role("REQUIRES_CONTEXT_REVIEW", "UNRESOLVED", "soft hospitality context coexists with IPTV signals; manual context review required", observation(noise_context, "EXTRACTED_FROM_CONTENT", "content/raw_content", text_blob)))
     if query.category == "comercial" and brand_signal and iptv_signal:
         roles.append(role("COMMERCIAL_PORTAL", "LOW", "commercial query plus brand/IPTV context", observation(query.query_id, "INFERRED", "query_context")))
     if not roles:
@@ -655,6 +719,7 @@ def prioritize_roles(roles: list[dict[str, Any]]) -> list[dict[str, Any]]:
         "COMMERCIAL_PORTAL",
         "REVIEW_OR_RANKING_SOURCE",
         "SOCIAL_OR_COMMUNITY_SOURCE",
+        "REQUIRES_CONTEXT_REVIEW",
         "UNKNOWN_ROLE",
     ]
     ordered = sorted(roles, key=lambda item: priority.index(item["role_candidate"]) if item["role_candidate"] in priority else len(priority))
@@ -705,7 +770,7 @@ def build_query_plan() -> list[QuerySpec]:
             "discovery",
             "A",
             "identidad_variantes",
-            '(\"Voco TV\" OR VocoTV OR \"Voco IPTV\" OR \"VocoTV IPTV\" OR \"Voco TV IPTV\") (IPTV OR streaming) (domain OR website OR \"official site\" OR \"official website\" OR portal OR platform OR \"new domain\" OR \"alternative domain\" OR regional OR USA OR Canada) -IHG -\"InterContinental Hotels Group\" -\"voco.dental\" -careers -\"hotel-online\" -dental -dentist -dentistry -odontologia -hotel -hotels -hospitality -lodging -resort',
+            '(\"Voco TV\" OR VocoTV OR \"Voco IPTV\") IPTV (domain OR website OR portal OR \"official site\" OR \"new domain\" OR \"alternative domain\") -IHG -\"InterContinental Hotels Group\" -hotel -hotels -hospitality -\"hotel-online\" -\"voco.dental\" -dental -dentist -dentistry',
             ["marca", "IPTV", "domain", "website", "official site", "portal", "platform", "regional"],
             hard_general + soft_context,
             [],
@@ -873,6 +938,29 @@ def build_query_plan() -> list[QuerySpec]:
     ]
 
 
+def query_length_status(query: QuerySpec) -> dict[str, Any]:
+    length = len(query.exact_query)
+    return {
+        "query_id": query.query_id,
+        "query_length": length,
+        "maximum_query_length": MAXIMUM_QUERY_LENGTH,
+        "query_length_valid": length <= MAXIMUM_QUERY_LENGTH,
+    }
+
+
+def validate_query_lengths(plan: list[QuerySpec]) -> tuple[bool, list[dict[str, Any]]]:
+    statuses = [query_length_status(query) for query in plan]
+    return all(item["query_length_valid"] for item in statuses), statuses
+
+
+def require_valid_query_lengths(plan: list[QuerySpec]) -> list[dict[str, Any]]:
+    valid, statuses = validate_query_lengths(plan)
+    if not valid:
+        invalid = [item for item in statuses if not item["query_length_valid"]]
+        raise ValueError(f"Query length exceeds {MAXIMUM_QUERY_LENGTH} characters: {json.dumps(invalid, ensure_ascii=True)}")
+    return statuses
+
+
 def validate_query_plan(plan: list[QuerySpec]) -> tuple[bool, list[dict[str, Any]]]:
     checks = []
 
@@ -882,13 +970,17 @@ def validate_query_plan(plan: list[QuerySpec]) -> tuple[bool, list[dict[str, Any
     ids = [q.query_id for q in plan]
     discovery = [q for q in plan if q.included_in_discovery_metrics]
     controls = [q for q in plan if not q.included_in_discovery_metrics]
-    add("total_queries_is_10", len(plan) == 10, len(plan))
-    add("discovery_queries_is_8", len(discovery) == 8, len(discovery))
+    minimum_ok, minimum_detail = validate_minimum_methodological_plan(plan)
+    add("total_queries_within_methodological_budget", 6 <= len(plan) <= RECOMMENDED_TOTAL_QUERIES, len(plan))
+    add("discovery_queries_within_4_to_8", 4 <= len(discovery) <= RECOMMENDED_DISCOVERY_QUERIES, len(discovery))
     add("control_queries_is_2", len(controls) == 2, len(controls))
     add("query_ids_unique", len(set(ids)) == len(ids), ids)
-    add("execution_order_1_to_10", [q.execution_order for q in plan] == list(range(1, 11)), [q.execution_order for q in plan])
+    add("execution_order_is_unique_and_sorted", [q.execution_order for q in plan] == sorted({q.execution_order for q in plan}), [q.execution_order for q in plan])
     add("controls_excluded_from_discovery_metrics", all(not q.included_in_discovery_metrics for q in controls), [q.query_id for q in controls])
     add("required_controls_present", {"voco_ctrl_01_known_vocotv_ai", "voco_ctrl_02_negative_noise"}.issubset(set(ids)), ids)
+    add("minimum_methodological_plan_valid", minimum_ok, minimum_detail)
+    query_lengths_ok, query_lengths = validate_query_lengths(plan)
+    add("all_query_lengths_within_tavily_limit", query_lengths_ok, query_lengths)
     identity = next(q for q in plan if q.query_id == "voco_df_01_identity_variants")
     add("identity_query_uses_contextual_terms_as_hard", all(term in identity.hard_negative_terms for term in CONTEXTUAL_SOFT_NEGATIVES), identity.hard_negative_terms)
     non_identity_discovery = [q for q in discovery if q.query_id != "voco_df_01_identity_variants"]
@@ -966,11 +1058,13 @@ def run_internal_self_tests(plan: list[QuerySpec]) -> tuple[bool, list[dict[str,
         batch = [
             normalize_tavily_result("synthetic", discovery_query, DEFAULT_BRAND, {"url": f"https://dup{i}.vocotv.org", "title": "Voco TV IPTV", "content": "support@vocotv.org login"}, 1),
             normalize_tavily_result("synthetic", discovery_query, DEFAULT_BRAND, {"url": f"https://dup{i}.vocotv.org", "title": "Voco TV IPTV", "content": "support@vocotv.org login"}, 2),
+            normalize_tavily_result("synthetic", discovery_query, DEFAULT_BRAND, {"url": f"https://dup{i}.vocotv.org", "title": "Voco TV IPTV", "content": "support@vocotv.org login"}, 3),
         ]
         mark_duplicates(batch)
         duplicate_batches.append(batch)
     add("stop_after_three_high_duplicate_rates", should_stop_after_query(duplicate_batches, 4, 10)[0], should_stop_after_query(duplicate_batches, 4, 10))
-    add("early_stop_skips_discovery_keeps_controls", discovery_skips_after_early_stop(plan, "voco_df_04_apps_login") and controls_after_early_stop(plan, "voco_df_04_apps_login") == ["voco_ctrl_01_known_vocotv_ai", "voco_ctrl_02_negative_noise"], {"skips": discovery_skips_after_early_stop(plan, "voco_df_04_apps_login"), "controls": controls_after_early_stop(plan, "voco_df_04_apps_login")})
+    expected_skips = [query.query_id for query in plan if query.included_in_discovery_metrics and query.execution_order > 4]
+    add("early_stop_skips_discovery_keeps_controls", discovery_skips_after_early_stop(plan, "voco_df_04_apps_login") == expected_skips and controls_after_early_stop(plan, "voco_df_04_apps_login") == ["voco_ctrl_01_known_vocotv_ai", "voco_ctrl_02_negative_noise"], {"skips": discovery_skips_after_early_stop(plan, "voco_df_04_apps_login"), "controls": controls_after_early_stop(plan, "voco_df_04_apps_login")})
     add("vocotv_ai_does_not_stop_by_itself", should_stop_after_query([[synthetic_discovery]], 4, 10) == (False, None), None)
     compat_a = query_compatibility_hash(discovery_query, Args)
     compat_b = query_compatibility_hash(discovery_query, Args)
@@ -985,14 +1079,113 @@ def run_internal_self_tests(plan: list[QuerySpec]) -> tuple[bool, list[dict[str,
     add("functional_hash_changes_negatives", compat_a != query_compatibility_hash(changed_negative, Args), None)
     add("functional_hash_changes_brand", compat_a != query_compatibility_hash(discovery_query, ArgsBrand), None)
     add("functional_hash_changes_max_results", compat_a != query_compatibility_hash(discovery_query, ArgsMax), None)
+    query_lengths_ok, query_lengths = validate_query_lengths(plan)
+    q1_length = next(item["query_length"] for item in query_lengths if item["query_id"] == "voco_df_01_identity_variants")
+    add("all_ten_queries_within_400_characters", query_lengths_ok and len(query_lengths) == len(plan), query_lengths)
+    add("q1_preferably_within_300_characters", q1_length <= 300, q1_length)
+    add("q1_does_not_literalize_vocotv_ai", "vocotv.ai" not in next(query.exact_query for query in plan if query.query_id == "voco_df_01_identity_variants").lower(), None)
+    oversized_query = QuerySpec(**{**asdict(discovery_query), "exact_query": "x" * 401})
+    counters_before_length = (CREDENTIAL_READS, TAVILY_CLIENT_INSTANTIATIONS, NETWORK_CALLS, TAVILY_SEARCH_CALLS)
+    oversized_rejected = False
+    try:
+        require_valid_query_lengths([oversized_query])
+    except ValueError:
+        oversized_rejected = True
+    add("oversized_query_rejected_before_side_effects", oversized_rejected and counters_before_length == (CREDENTIAL_READS, TAVILY_CLIENT_INSTANTIATIONS, NETWORK_CALLS, TAVILY_SEARCH_CALLS), None)
+    add("query_too_long_classified_non_retryable", classify_search_error("Query is too long. Max query length is 400 characters.") == "NON_RETRYABLE_ERROR", None)
+    add("transient_timeout_classified_retryable", classify_search_error("temporary connection timeout") == "RETRYABLE_TRANSIENT_ERROR", None)
+    class SyntheticTooLongClient:
+        def __init__(self) -> None:
+            self.calls = 0
+        def search(self, **_kwargs: Any) -> dict[str, Any]:
+            self.calls += 1
+            raise RuntimeError("Query is too long. Max query length is 400 characters.")
+    synthetic_client = SyntheticTooLongClient()
+    counters_before_retry_test = (NETWORK_CALLS, TAVILY_SEARCH_CALLS)
+    _response, _error, synthetic_attempts, synthetic_error_class, _records = search_with_retry_policy(synthetic_client, discovery_query, Args)
+    add("query_too_long_only_one_attempt", synthetic_attempts == 1 and synthetic_client.calls == 1 and synthetic_error_class == "NON_RETRYABLE_ERROR", {"attempts": synthetic_attempts, "calls": synthetic_client.calls})
+    globals()["NETWORK_CALLS"], globals()["TAVILY_SEARCH_CALLS"] = counters_before_retry_test
+    low_precision_metrics = {"raw_result_count_discovery": 10, "relevant_domain_precision": 0.1518, "spontaneous_vocotv_ai_recovery": "FALSE", "new_candidate_domain_count": 14, "new_useful_relationship_count": 129}
+    add("low_precision_cannot_discovery_pass", evaluate_discovery(low_precision_metrics)["verdict"] != "DISCOVERY_PASS", evaluate_discovery(low_precision_metrics))
+    add("technical_failure_forces_incomplete_discovery", evaluate_discovery(low_precision_metrics, technical_failure=True, query_count_discovery_planned=8, query_count_discovery_completed=7)["verdict"] == "DISCOVERY_INCOMPLETE_TECHNICAL_FAILURE", None)
+    add("technical_failure_forces_incomplete_utility", evaluate_v3_utility([], low_precision_metrics, technical_failure=True, query_count_discovery_planned=8, query_count_discovery_completed=7)["verdict"] == "V3_UTILITY_INCOMPLETE_TECHNICAL_FAILURE", None)
     add("term_boundaries", contains_any("mobile application unofficial promo reseller panel hotel-online odontologia", ["app", "official", "unofficial", "promo", "reseller panel", "hotel-online", "odontología"]) == ["unofficial", "promo", "reseller panel", "hotel-online", "odontología"], contains_any("mobile application unofficial promo reseller panel hotel-online odontologia", ["app", "official", "unofficial", "promo", "reseller panel", "hotel-online", "odontología"]))
-    add("safety_hotel_dental", evaluate_safety([normalize_tavily_result("synthetic", discovery_query, DEFAULT_BRAND, {"url": "https://vocotv.org", "title": "Voco TV IPTV", "content": "Voco TV IPTV hotel dental support@vocotv.org login"}, 1)], plan)["verdict"] == "SAFETY_FAIL", None)
+    retained_noise = normalize_tavily_result("synthetic", discovery_query, DEFAULT_BRAND, {"url": "https://vocotv.org", "title": "Voco TV IPTV", "content": "Voco TV IPTV hotel dental support@vocotv.org login"}, 1)
+    retained_noise.role_candidates = [role("POSSIBLE_BRAND_OPERATOR", "MEDIUM", "forced retained candidate", observation(["brand_alias", "iptv_context"], "DIRECTLY_OBSERVED", "test")) | {"primary_role_candidate": True}]
+    add("safety_hotel_dental", evaluate_safety([retained_noise], plan)["verdict"] == "SAFETY_FAIL", None)
     inferred_result = normalize_tavily_result("synthetic", discovery_query, DEFAULT_BRAND, {"url": "https://vocotv.org", "title": "Voco TV IPTV", "content": "Voco TV IPTV support@vocotv.org login"}, 1)
     inferred_result.role_candidates = [role("POSSIBLE_BRAND_OPERATOR", "MEDIUM", "forced inferred", observation(["brand_alias"], "INFERRED", "test")) | {"primary_role_candidate": True}]
     add("safety_inference_primary_fails", evaluate_safety([inferred_result], plan)["verdict"] == "SAFETY_FAIL", None)
     add("manifest_counters_dry_run", build_manifest(Args, "synthetic", "DRY_RUN", build_paths_for_run_dir(Path("dry_run_synthetic")), plan, True, True)["credential_reads"] == 0 and build_manifest(Args, "synthetic", "DRY_RUN", build_paths_for_run_dir(Path("dry_run_synthetic")), plan, True, True)["tavily_search_calls"] == 0, None)
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp_dir = Path(tmp)
+    minimum_ids = [query.query_id for query in plan if query.phase == "A" or (query.phase == "B" and query.execution_order <= 4) or not query.included_in_discovery_metrics]
+    minimum_plan = [query for query in plan if query.query_id in minimum_ids]
+    add("minimum_methodological_plan_valid", validate_minimum_methodological_plan(minimum_plan)[0], minimum_ids)
+    add("late_queries_cannot_bypass_minimum", not validate_minimum_methodological_plan([query for query in plan if query.phase in {"C", "control"}])[0], None)
+    add("one_phase_b_is_insufficient", not validate_minimum_methodological_plan([query for query in plan if query.phase == "A" or query.query_id == "voco_df_03_contact_support" or query.phase == "control"])[0], None)
+    add("four_discovery_without_all_phase_a_rejected", not validate_minimum_methodological_plan([query for query in plan if query.query_id in {"voco_df_02_commercial_sales", "voco_df_03_contact_support", "voco_df_04_apps_login", "voco_df_05_checkout_payment_infra", "voco_ctrl_01_known_vocotv_ai", "voco_ctrl_02_negative_noise"}])[0], None)
+    add("controls_required_for_executable_plan", not validate_minimum_methodological_plan([query for query in plan if query.included_in_discovery_metrics])[0], None)
+    unknown_rejected = False
+    try:
+        filter_plan(plan, "unknown_query", None)
+    except ValueError:
+        unknown_rejected = True
+    add("unknown_query_ids_rejected", unknown_rejected, None)
+    stop_phase_a_rejected = False
+    try:
+        filter_plan(plan, None, "A")
+    except ValueError:
+        stop_phase_a_rejected = True
+    add("stop_after_phase_a_cannot_bypass_minimum", stop_phase_a_rejected, None)
+    add("stop_after_phase_b_satisfies_minimum", validate_minimum_methodological_plan(filter_plan(plan, None, "B"))[0], None)
+
+    def synthetic_noise(index: int, content: str) -> NormalizedResult:
+        return normalize_tavily_result("synthetic", discovery_query, DEFAULT_BRAND, {"url": f"https://noise-{index}.vocotv.example", "title": "Synthetic", "content": content}, 1)
+
+    exactly_quarter = [synthetic_noise(1, "dental clinic"), synthetic_noise(2, "IPTV plans login"), synthetic_noise(3, "IPTV plans login"), synthetic_noise(4, "IPTV plans login")]
+    above_quarter = [synthetic_noise(11, "dental clinic"), synthetic_noise(12, "IHG careers hotel"), synthetic_noise(13, "IPTV plans login"), synthetic_noise(14, "IPTV plans login"), synthetic_noise(15, "IPTV plans login")]
+    contextual_hotel = [synthetic_noise(21, "hospitality IPTV subscription plans support login support@noise-21.example")]
+    add("retained_noise_exactly_0_25_does_not_stop", evaluate_early_stop([[item] for item in exactly_quarter], 4, 10)["stop"] is False, calculate_retained_noise_provisional(exactly_quarter))
+    noise_decision = evaluate_early_stop([[item] for item in above_quarter], 4, 10)
+    add("retained_noise_0_40_stops", noise_decision["stop"] and noise_decision["reason"] == "EARLY_STOP_RETAINED_NOISE_THRESHOLD", noise_decision)
+    add("retained_noise_zero_denominator_is_null", calculate_retained_noise_provisional([])["retained_noise_rate_provisional"] is None, calculate_retained_noise_provisional([]))
+    add("contextual_hotel_not_provisional_noise", calculate_retained_noise_provisional(contextual_hotel)["retained_noise_numerator"] == 0, calculate_retained_noise_provisional(contextual_hotel))
+    add("retained_noise_does_not_stop_before_minimum", evaluate_early_stop([[item] for item in above_quarter[:3]], 4, 10)["stop"] is False, None)
+
+    ihg_result = normalize_tavily_result("synthetic", discovery_query, DEFAULT_BRAND, {"url": "https://ihg.example", "title": "IHG careers", "content": "Voco hotel hospitality careers"}, 1)
+    hotel_online_result = normalize_tavily_result("synthetic", discovery_query, DEFAULT_BRAND, {"url": "https://hotel-online.example", "title": "hotel-online", "content": "lodging publication"}, 1)
+    hospitality_iptv = normalize_tavily_result("synthetic", discovery_query, DEFAULT_BRAND, {"url": "https://vocotv.org", "title": "Voco TV", "content": "hospitality IPTV subscription plans login support support@vocotv.org"}, 1)
+    weak_hotel_iptv = normalize_tavily_result("synthetic", discovery_query, DEFAULT_BRAND, {"url": "https://mixed.example", "title": "Hotel TV", "content": "hotel IPTV"}, 1)
+    dental_result = normalize_tavily_result("synthetic", discovery_query, DEFAULT_BRAND, {"url": "https://voco.dental", "title": "Voco Dental", "content": "dentistry"}, 1)
+    deployment_result = normalize_tavily_result("synthetic", discovery_query, DEFAULT_BRAND, {"url": "https://deployment.example", "title": "Hotel TV deployment", "content": "hospitality IPTV channels VOD player deployment"}, 1)
+    add("ihg_careers_is_homonym", "HOMONYM_OR_IRRELEVANT" in [item["role_candidate"] for item in ihg_result.role_candidates], ihg_result.role_candidates)
+    add("hotel_online_is_homonym", "HOMONYM_OR_IRRELEVANT" in [item["role_candidate"] for item in hotel_online_result.role_candidates], hotel_online_result.role_candidates)
+    add("hospitality_strong_iptv_not_homonym", "HOMONYM_OR_IRRELEVANT" not in [item["role_candidate"] for item in hospitality_iptv.role_candidates] and "REQUIRES_CONTEXT_REVIEW" in [item["role_candidate"] for item in hospitality_iptv.role_candidates], hospitality_iptv.role_candidates)
+    add("weak_hotel_iptv_requires_review_not_operator", "REQUIRES_CONTEXT_REVIEW" in [item["role_candidate"] for item in weak_hotel_iptv.role_candidates] and "POSSIBLE_BRAND_OPERATOR" not in [item["role_candidate"] for item in weak_hotel_iptv.role_candidates], weak_hotel_iptv.role_candidates)
+    add("voco_dental_is_homonym", "HOMONYM_OR_IRRELEVANT" in [item["role_candidate"] for item in dental_result.role_candidates], dental_result.role_candidates)
+    add("hotel_tv_deployment_not_automatic_homonym", "HOMONYM_OR_IRRELEVANT" not in [item["role_candidate"] for item in deployment_result.role_candidates], deployment_result.role_candidates)
+
+    trace_valid = normalize_tavily_result("synthetic", discovery_query, DEFAULT_BRAND, {"url": "https://vocotv.org", "title": "Voco TV IPTV", "content": "IPTV plans login support@vocotv.org"}, 1)
+    add("traceability_valid_passes", evaluate_safety([trace_valid], plan)["safety_gate_results"]["TRACEABILITY_COMPLETE"], None)
+    for invalid_name, invalid_value in [("empty", ""), ("spaces", "   "), ("control", "bad\nquery")]:
+        invalid_trace = normalize_tavily_result("synthetic", discovery_query, DEFAULT_BRAND, {"url": f"https://trace-{invalid_name}.example", "title": "Voco TV IPTV", "content": "IPTV plans login"}, 1)
+        invalid_trace.query_id = invalid_value
+        add(f"traceability_query_id_{invalid_name}_fails", not evaluate_safety([invalid_trace], plan)["safety_gate_results"]["TRACEABILITY_COMPLETE"], None)
+    empty_evidence = normalize_tavily_result("synthetic", discovery_query, DEFAULT_BRAND, {"url": "https://empty-evidence.example", "title": "", "content": ""}, 1)
+    empty_evidence.directly_observed_fields = {}
+    add("traceability_empty_observable_evidence_fails", not evaluate_safety([empty_evidence], plan)["safety_gate_results"]["TRACEABILITY_COMPLETE"], None)
+    empty_url = normalize_tavily_result("synthetic", discovery_query, DEFAULT_BRAND, {"url": "", "title": "Voco TV IPTV", "content": "IPTV plans login"}, 1)
+    add("traceability_empty_source_url_fails", not evaluate_safety([empty_url], plan)["safety_gate_results"]["TRACEABILITY_COMPLETE"], None)
+    mixed_invalid = normalize_tavily_result("synthetic", discovery_query, DEFAULT_BRAND, {"url": "https://vocotv.org", "title": "Voco TV IPTV second", "content": "IPTV plans login"}, 2)
+    mixed_invalid.query_id = ""
+    add("traceability_mixed_valid_and_empty_ids_fails", not evaluate_safety([trace_valid, mixed_invalid], plan)["safety_gate_results"]["TRACEABILITY_COMPLETE"], None)
+    # Keep synthetic filesystem checks in a fixed workspace path. Some managed
+    # Windows environments deny access to randomly named TemporaryDirectory
+    # children and make NamedTemporaryFile retry indefinitely.
+    tmp_dir = PROJECT_ROOT / ".tmp_domain_family_selftest"
+    if tmp_dir.exists():
+        raise RuntimeError(f"Self-test directory already exists: {tmp_dir}")
+    tmp_dir.mkdir()
+    try:
         checkpoint_path = tmp_dir / "checkpoint.json"
         save_checkpoint(checkpoint_path, {"queries": {discovery_query.query_id: {"status": "COMPLETED", "execution_compatibility_hash": compat_a}}})
         loaded = load_checkpoint(checkpoint_path)
@@ -1057,6 +1250,111 @@ def run_internal_self_tests(plan: list[QuerySpec]) -> tuple[bool, list[dict[str,
         except ValueError:
             dry_rejected = True
         add("resume_dry_run_rejected", dry_rejected, None)
+
+        synthetic_resume_dir = tmp_dir / "run_resume_history"
+        synthetic_paths = build_paths_for_run_dir(synthetic_resume_dir)
+        synthetic_resume_dir.mkdir()
+        q1, q2, q3 = plan[0], plan[1], plan[2]
+        synthetic_checkpoint = {
+            "schema_version": CHECKPOINT_SCHEMA_VERSION,
+            "queries": {
+                q1.query_id: {"status": "COMPLETED", "result_count": 1},
+                q2.query_id: {"status": "COMPLETED", "result_count": 1},
+                q3.query_id: {"status": "PENDING", "result_count": 0},
+            },
+        }
+        historical_source_1 = {"url": "https://history-one.vocotv.org", "title": "Voco TV IPTV", "content": "IPTV plans login support"}
+        historical_source_2 = {"url": "https://history-two.vocotv.org", "title": "Voco TV IPTV", "content": "IPTV app channels VOD support"}
+        append_jsonl(synthetic_paths["raw_results"], {"run_id": "resume", "query_id": q1.query_id, "result_position": 1, "source_data": historical_source_1})
+        append_jsonl(synthetic_paths["raw_results"], {"run_id": "resume", "query_id": q2.query_id, "result_position": 1, "source_data": historical_source_2})
+        append_jsonl(synthetic_paths["query_log"], {"query_id": q1.query_id, "status": "COMPLETED"})
+        append_jsonl(synthetic_paths["query_log"], {"query_id": q2.query_id, "status": "COMPLETED"})
+        rebuilt, rebuild_detail = rebuild_resume_history(synthetic_paths, synthetic_checkpoint, plan, DEFAULT_BRAND, "resume")
+        add("resume_rebuilds_historical_raw_results", len(rebuilt) == 2 and rebuild_detail["resume_historical_result_count"] == 2, rebuild_detail)
+        new_resume_result = normalize_tavily_result("resume", q3, DEFAULT_BRAND, {"url": "https://history-three.vocotv.org", "title": "Voco TV IPTV", "content": "IPTV subscription activation support"}, 1)
+        combined, removed = combine_normalized_results(rebuilt, [new_resume_result])
+        add("resume_combines_historical_and_new", len(combined) == 3 and removed == 0, None)
+        add("resume_combined_metrics_include_all_results", calculate_metrics(combined, plan, BASELINE_DOMAINS)["raw_result_count_discovery"] == 3, calculate_metrics(combined, plan, BASELINE_DOMAINS))
+        add("resume_combined_family_includes_all_results", len(build_domain_family(combined, DEFAULT_BRAND, plan)["brand_family"]["candidate_domains"]) >= 3, None)
+        combined_with_duplicate, removed_duplicate = combine_normalized_results(rebuilt, [rebuilt[0], new_resume_result])
+        add("resume_deduplicates_repeated_historical_result", len(combined_with_duplicate) == 3 and removed_duplicate == 1, removed_duplicate)
+        second_combined, second_removed = combine_normalized_results(combined, [])
+        add("resume_combination_is_idempotent", [item.result_id for item in second_combined] == [item.result_id for item in combined] and second_removed == 0 and calculate_metrics(second_combined, plan, BASELINE_DOMAINS) == calculate_metrics(combined, plan, BASELINE_DOMAINS), None)
+        zero_checkpoint = {"schema_version": CHECKPOINT_SCHEMA_VERSION, "queries": {q1.query_id: {"status": "COMPLETED", "result_count": 0}}}
+        zero_dir = tmp_dir / "run_resume_zero"
+        zero_paths = build_paths_for_run_dir(zero_dir)
+        zero_dir.mkdir()
+        zero_paths["raw_results"].write_text("", encoding="utf-8")
+        append_jsonl(zero_paths["query_log"], {"query_id": q1.query_id, "status": "COMPLETED"})
+        zero_rebuilt, _zero_detail = rebuild_resume_history(zero_paths, zero_checkpoint, plan, DEFAULT_BRAND, "zero")
+        add("resume_completed_zero_results_preserved", zero_rebuilt == [], None)
+        missing_raw_failed = False
+        missing_dir = tmp_dir / "run_resume_missing_raw"
+        missing_paths = build_paths_for_run_dir(missing_dir)
+        missing_dir.mkdir()
+        append_jsonl(missing_paths["query_log"], {"query_id": q1.query_id, "status": "COMPLETED"})
+        try:
+            rebuild_resume_history(missing_paths, zero_checkpoint, plan, DEFAULT_BRAND, "missing")
+        except ValueError:
+            missing_raw_failed = True
+        add("resume_missing_raw_fails_safe", missing_raw_failed, None)
+        corrupt_raw_failed = False
+        corrupt_dir = tmp_dir / "run_resume_corrupt_raw"
+        corrupt_paths = build_paths_for_run_dir(corrupt_dir)
+        corrupt_dir.mkdir()
+        corrupt_paths["raw_results"].write_text('{"ok": true}\n{"bad":\n{"ok": false}\n', encoding="utf-8")
+        append_jsonl(corrupt_paths["query_log"], {"query_id": q1.query_id, "status": "COMPLETED"})
+        try:
+            rebuild_resume_history(corrupt_paths, zero_checkpoint, plan, DEFAULT_BRAND, "corrupt")
+        except ValueError:
+            corrupt_raw_failed = True
+        add("resume_intermediate_raw_corruption_fails_safe", corrupt_raw_failed, None)
+
+        repair_dir = tmp_dir / "run_repair_fixture"
+        repair_paths = build_paths_for_run_dir(repair_dir)
+        repair_dir.mkdir()
+        class RepairArgs(Args):
+            execute = True
+            confirm_credit_use = True
+            repair_failed_run_dir = str(repair_dir)
+            repair_query_id = "voco_df_01_identity_variants"
+        repair_manifest = build_manifest(RepairArgs, "repair-fixture", "EXECUTE", repair_paths, plan, True, True)
+        write_json(repair_paths["execution_manifest"], repair_manifest)
+        repair_checkpoint = {"schema_version": CHECKPOINT_SCHEMA_VERSION, "queries": {}}
+        for repair_query in plan:
+            repair_checkpoint["queries"][repair_query.query_id] = {
+                "status": "FAILED" if repair_query.query_id == RepairArgs.repair_query_id else "CONTROL_COMPLETED" if repair_query.phase == "control" else "COMPLETED",
+                "attempts": 3 if repair_query.query_id == RepairArgs.repair_query_id else 1,
+                "result_count": 0,
+                "execution_compatibility_hash": "legacy-q1-hash" if repair_query.query_id == RepairArgs.repair_query_id else query_compatibility_hash(repair_query, RepairArgs),
+            }
+        save_checkpoint(repair_paths["checkpoint"], repair_checkpoint)
+        repair_valid = False
+        try:
+            _rd, _rm, repaired_checkpoint, _rp, repair_info = validate_repair_failed_run_dir(RepairArgs, plan)
+            repair_valid = repaired_checkpoint["queries"][RepairArgs.repair_query_id]["status"] == "PENDING" and repair_info["previous_query_hash"] == "legacy-q1-hash" and repair_info["repair_reason"] == "QUERY_LENGTH_LIMIT" and repair_info["prior_attempts"] == 3
+        except Exception:
+            repair_valid = False
+        add("repair_accepts_only_explicit_failed_q1", repair_valid, None)
+        class CompletedRepairArgs(RepairArgs):
+            repair_query_id = "voco_df_02_commercial_sales"
+        completed_repair_rejected = False
+        try:
+            validate_repair_failed_run_dir(CompletedRepairArgs, plan)
+        except ValueError:
+            completed_repair_rejected = True
+        add("repair_rejects_completed_query", completed_repair_rejected, None)
+        incompatible_checkpoint = json.loads(json.dumps(repair_checkpoint))
+        incompatible_checkpoint["queries"]["voco_df_02_commercial_sales"]["execution_compatibility_hash"] = "changed-completed-query"
+        save_checkpoint(repair_paths["checkpoint"], incompatible_checkpoint)
+        completed_change_rejected = False
+        try:
+            validate_repair_failed_run_dir(RepairArgs, plan)
+        except ValueError:
+            completed_change_rejected = True
+        add("repair_rejects_hash_change_in_completed_query", completed_change_rejected, None)
+    finally:
+        shutil.rmtree(tmp_dir)
     return all(item["ok"] for item in tests), tests
 
 
@@ -1183,6 +1481,8 @@ def collect_candidate_domains(results: list[NormalizedResult]) -> list[dict[str,
                     "url": result.canonical_url,
                     "observed_signal": role_name,
                     "evidence_origin": "directly_observed" if result.canonical_url else "unavailable",
+                    "source_field": "url/title/content",
+                    "result_id": result.result_id,
                 }
             )
             item["is_relevant_family_candidate"] = item["is_relevant_family_candidate"] or is_relevant
@@ -1197,8 +1497,9 @@ def collect_candidate_domains(results: list[NormalizedResult]) -> list[dict[str,
     return output
 
 
-def evaluate_safety(results: list[NormalizedResult], plan: list[QuerySpec]) -> dict[str, Any]:
+def evaluate_safety(results: list[NormalizedResult], plan: list[QuerySpec], execution_incomplete: bool = False) -> dict[str, Any]:
     findings = []
+    traceability_failures: list[dict[str, Any]] = []
     gate_results: dict[str, bool] = {
         "automatic_officiality_absent": True,
         "controls_not_in_discovery_metrics": True,
@@ -1206,6 +1507,7 @@ def evaluate_safety(results: list[NormalizedResult], plan: list[QuerySpec]) -> d
         "dental_noise_not_retained": True,
         "inference_not_primary_positive_evidence": True,
         "candidate_traceability_present": True,
+        "TRACEABILITY_COMPLETE": True,
     }
     discovery_query_ids = {q.query_id for q in plan if q.included_in_discovery_metrics}
     for result in results:
@@ -1216,6 +1518,19 @@ def evaluate_safety(results: list[NormalizedResult], plan: list[QuerySpec]) -> d
         gate_results["automatic_officiality_absent"] = False
         findings.append("automatic officiality confirmation detected")
     candidates = collect_candidate_domains([r for r in results if not r.is_duplicate])
+    for result in results:
+        missing = []
+        if not is_nonempty_identifier(result.query_id):
+            missing.append("query_id")
+        if not is_nonempty_identifier(result.result_id):
+            missing.append("result_id")
+        if not result.canonical_url or canonicalize_url(result.canonical_url).get("validation_error"):
+            missing.append("source_url")
+        observed = result.directly_observed_fields or {}
+        if not observed or not any(item.get("value") is not None and item.get("value") != "" and item.get("value") != [] and item.get("value") != {} for item in observed.values() if isinstance(item, dict)):
+            missing.append("observable_evidence")
+        if missing:
+            traceability_failures.append({"result_id": result.result_id, "invalid_or_missing_fields": missing})
     for candidate in candidates:
         if candidate.get("is_relevant_family_candidate") and candidate.get("hotel_noise_retained"):
             gate_results["hotel_ihg_noise_not_retained"] = False
@@ -1223,9 +1538,21 @@ def evaluate_safety(results: list[NormalizedResult], plan: list[QuerySpec]) -> d
         if candidate.get("is_relevant_family_candidate") and candidate.get("dental_noise_retained"):
             gate_results["dental_noise_not_retained"] = False
             findings.append(f"dental signal retained as IPTV candidate: {candidate['domain']}")
-        if not candidate.get("query_ids") or not candidate.get("evidence_urls") or not candidate.get("evidence"):
+        valid_query_ids = [value for value in candidate.get("query_ids", []) if is_nonempty_identifier(value)]
+        evidence_items = candidate.get("evidence") or []
+        valid_evidence = [
+            item for item in evidence_items
+            if is_nonempty_identifier(item.get("query_id"))
+            and item.get("url")
+            and canonicalize_url(item.get("url")).get("validation_error") is None
+            and isinstance(item.get("observed_signal"), str) and bool(item.get("observed_signal", "").strip())
+            and isinstance(item.get("source_field"), str) and bool(item.get("source_field", "").strip())
+            and is_nonempty_identifier(item.get("result_id"))
+        ]
+        invalid_query_entry = len(valid_query_ids) != len(candidate.get("query_ids", []))
+        if not valid_query_ids or invalid_query_entry or not candidate.get("evidence_urls") or not valid_evidence:
             gate_results["candidate_traceability_present"] = False
-            findings.append(f"candidate lacks traceability: {candidate['domain']}")
+            traceability_failures.append({"domain": candidate["domain"], "invalid_or_missing_fields": ["query_ids/evidence_urls/evidence"]})
     for result in results:
         for role_item in result.role_candidates:
             if role_item.get("primary_role_candidate") and role_item.get("role_candidate") == "POSSIBLE_BRAND_OPERATOR":
@@ -1234,31 +1561,48 @@ def evaluate_safety(results: list[NormalizedResult], plan: list[QuerySpec]) -> d
                     gate_results["inference_not_primary_positive_evidence"] = False
                     findings.append(f"inferred-only operator evidence: {result.canonical_hostname}")
     no_candidate_warning = len(candidates) == 0
+    if traceability_failures:
+        gate_results["candidate_traceability_present"] = False
+        gate_results["TRACEABILITY_COMPLETE"] = False
+        findings.append("TRACEABILITY_COMPLETE failed")
     notes = []
     if no_candidate_warning:
         notes.append("SAFETY_PASS_WITH_NO_CANDIDATES: technical safety only; not a discovery success")
+    if execution_incomplete:
+        notes.append("EXECUTION_INCOMPLETE_TECHNICAL_FAILURE: safety gates do not imply discovery completeness")
     return {
         "verdict": "SAFETY_FAIL" if findings else "SAFETY_PASS",
         "findings": findings,
         "safety_notes": notes,
         "safety_gate_results": gate_results,
         "no_candidate_warning": no_candidate_warning,
+        "traceability_failures": traceability_failures,
     }
 
 
-def evaluate_discovery(metrics: dict[str, Any]) -> dict[str, Any]:
-    if metrics.get("spontaneous_vocotv_ai_recovery") == "TRUE" or metrics.get("new_candidate_domain_count", 0) >= 1 or metrics.get("new_useful_relationship_count", 0) >= 2:
+def evaluate_discovery(metrics: dict[str, Any], technical_failure: bool = False, query_count_discovery_planned: int | None = None, query_count_discovery_completed: int | None = None) -> dict[str, Any]:
+    incomplete = bool(technical_failure or (query_count_discovery_planned is not None and query_count_discovery_completed is not None and query_count_discovery_completed < query_count_discovery_planned))
+    precision = metrics.get("relevant_domain_precision")
+    spontaneous = metrics.get("spontaneous_vocotv_ai_recovery")
+    if incomplete:
+        verdict = "DISCOVERY_INCOMPLETE_TECHNICAL_FAILURE"
+    elif precision is None or precision < 0.70:
+        verdict = "DISCOVERY_PARTIAL_LOW_PRECISION" if metrics.get("raw_result_count_discovery", 0) > 0 else "DISCOVERY_FAIL"
+    elif spontaneous == "TRUE" or metrics.get("new_candidate_domain_count", 0) >= 1 or metrics.get("new_useful_relationship_count", 0) >= 2:
         verdict = "DISCOVERY_PASS"
     elif metrics.get("raw_result_count_discovery", 0) > 0:
         verdict = "DISCOVERY_PARTIAL"
     else:
         verdict = "DISCOVERY_FAIL"
-    return {"verdict": verdict, "basis": "spontaneous domain, new domains, or useful relationships only; no officiality implied"}
+    return {"verdict": verdict, "basis": f"technical_failure={technical_failure}; completed={query_count_discovery_completed}; planned={query_count_discovery_planned}; relevant_domain_precision={precision}; spontaneous_vocotv_ai_recovery={spontaneous}; no officiality implied"}
 
 
-def evaluate_v3_utility(results: list[NormalizedResult], metrics: dict[str, Any]) -> dict[str, Any]:
+def evaluate_v3_utility(results: list[NormalizedResult], metrics: dict[str, Any], technical_failure: bool = False, query_count_discovery_planned: int | None = None, query_count_discovery_completed: int | None = None) -> dict[str, Any]:
     useful = metrics.get("new_useful_relationship_count", 0) or metrics.get("linked_domain_count", 0)
-    if useful >= 2:
+    incomplete = bool(technical_failure or (query_count_discovery_planned is not None and query_count_discovery_completed is not None and query_count_discovery_completed < query_count_discovery_planned))
+    if incomplete:
+        verdict = "V3_UTILITY_INCOMPLETE_TECHNICAL_FAILURE"
+    elif useful >= 2:
         verdict = "V3_UTILITY_PASS"
     elif useful == 1 or results:
         verdict = "V3_UTILITY_PARTIAL"
@@ -1267,11 +1611,39 @@ def evaluate_v3_utility(results: list[NormalizedResult], metrics: dict[str, Any]
     return {"verdict": verdict, "basis": "fingerprints, contacts, support, checkout, app, roles, conflicts, and traceability"}
 
 
-def should_stop_after_query(executed_discovery_results: list[list[NormalizedResult]], min_discovery_executed: int, max_discovery_queries: int) -> tuple[bool, str | None]:
+def calculate_retained_noise_provisional(results: list[NormalizedResult]) -> dict[str, Any]:
+    auditable_domains: set[str] = set()
+    noise_domains: set[str] = set()
+    for result in results:
+        if result.query_type != "discovery" or result.is_duplicate or not result.canonical_hostname:
+            continue
+        if result.directly_observed_fields.get("url_validation_error", {}).get("value"):
+            continue
+        domain = result.canonical_hostname
+        auditable_domains.add(domain)
+        context = result.extracted_fields.get("noise_context", {}).get("value") or {}
+        if context.get("hard_irrelevant"):
+            noise_domains.add(domain)
+    denominator = len(auditable_domains)
+    numerator = len(noise_domains)
+    return {
+        "retained_noise_rate_provisional": safe_div(numerator, denominator or None),
+        "retained_noise_numerator": numerator,
+        "retained_noise_denominator": denominator,
+        "retained_noise_domains": sorted(noise_domains),
+    }
+
+
+def evaluate_early_stop(executed_discovery_results: list[list[NormalizedResult]], min_discovery_executed: int, max_discovery_queries: int) -> dict[str, Any]:
+    noise = calculate_retained_noise_provisional([result for batch in executed_discovery_results for result in batch])
+    decision = {"stop": False, "reason": None, **noise}
     if len(executed_discovery_results) >= max_discovery_queries:
-        return True, "budget_max_reached"
+        return {**decision, "stop": True, "reason": "budget_max_reached"}
     if len(executed_discovery_results) < min_discovery_executed:
-        return False, None
+        return decision
+    rate = noise["retained_noise_rate_provisional"]
+    if rate is not None and rate > 0.25:
+        return {**decision, "stop": True, "reason": "EARLY_STOP_RETAINED_NOISE_THRESHOLD"}
     recent = executed_discovery_results[-3:]
     if len(recent) == 3:
         duplicate_rates = []
@@ -1282,10 +1654,15 @@ def should_stop_after_query(executed_discovery_results: list[list[NormalizedResu
             domains = collect_candidate_domains([r for r in batch if not r.is_duplicate])
             no_new_signal.append(not any(d.get("is_relevant_family_candidate") for d in domains))
         if all(rate > 0.50 for rate in duplicate_rates):
-            return True, "duplicate_rate_above_0_50_for_three_discovery_queries"
+            return {**decision, "stop": True, "reason": "duplicate_rate_above_0_50_for_three_discovery_queries"}
         if all(no_new_signal):
-            return True, "three_discovery_queries_without_new_domain_or_relationship"
-    return False, None
+            return {**decision, "stop": True, "reason": "three_discovery_queries_without_new_domain_or_relationship"}
+    return decision
+
+
+def should_stop_after_query(executed_discovery_results: list[list[NormalizedResult]], min_discovery_executed: int, max_discovery_queries: int) -> tuple[bool, str | None]:
+    decision = evaluate_early_stop(executed_discovery_results, min_discovery_executed, max_discovery_queries)
+    return bool(decision["stop"]), decision["reason"]
 
 
 def discovery_skips_after_early_stop(plan: list[QuerySpec], trigger_query_id: str) -> list[str]:
@@ -1492,6 +1869,151 @@ def validate_resume_run_dir(args: argparse.Namespace, plan: list[QuerySpec]) -> 
     return run_dir, manifest, checkpoint, paths
 
 
+def validate_repair_failed_run_dir(args: argparse.Namespace, plan: list[QuerySpec]) -> tuple[Path, dict[str, Any], dict[str, Any], dict[str, Path], dict[str, Any]]:
+    if not args.repair_failed_run_dir or not args.repair_query_id:
+        raise ValueError("Repair requires --repair-failed-run-dir and --repair-query-id")
+    run_dir = Path(args.repair_failed_run_dir).resolve()
+    if not run_dir.exists() or not run_dir.is_dir():
+        raise ValueError(f"Repair run directory does not exist: {run_dir}")
+    paths = build_paths_for_run_dir(run_dir)
+    if not paths["checkpoint"].exists() or not paths["execution_manifest"].exists():
+        raise ValueError("Repair requires an existing checkpoint and execution manifest")
+    manifest = json.loads(paths["execution_manifest"].read_text(encoding="utf-8"))
+    if manifest.get("mode") != "EXECUTE":
+        raise ValueError("Repair source must be an EXECUTE run")
+    if manifest.get("parameters", {}).get("brand") != args.brand:
+        raise ValueError("Repair brand does not match existing run")
+    if manifest.get("design_hash") != file_sha256(DEFAULT_DESIGN_PATH):
+        raise ValueError("Repair design hash does not match current design")
+    for parameter in ("search_depth", "max_results", "include_raw_content", "include_answer", "timeout"):
+        expected = manifest.get("parameters", {}).get(parameter)
+        current = {"include_raw_content": True, "include_answer": False}.get(parameter, getattr(args, parameter, None))
+        if expected != current:
+            raise ValueError(f"Repair parameter mismatch: {parameter}")
+    checkpoint = load_checkpoint(paths["checkpoint"])
+    plan_by_id = {query.query_id: query for query in plan}
+    if args.repair_query_id not in plan_by_id:
+        raise ValueError(f"Repair query ID is not in the current plan: {args.repair_query_id}")
+    selected_entry = checkpoint.get("queries", {}).get(args.repair_query_id)
+    if not selected_entry or selected_entry.get("status") != "FAILED":
+        raise ValueError(f"Repair query must currently be FAILED: {args.repair_query_id}")
+    for query_id, entry in checkpoint.get("queries", {}).items():
+        if query_id not in plan_by_id:
+            raise ValueError(f"Checkpoint contains query outside current plan: {query_id}")
+        if query_id == args.repair_query_id:
+            continue
+        if entry.get("status") in {"COMPLETED", "CONTROL_COMPLETED", "SKIPPED_EARLY_STOP"}:
+            existing_hash = entry.get("execution_compatibility_hash") or entry.get("query_hash")
+            current_hash = query_compatibility_hash(plan_by_id[query_id], args)
+            if existing_hash and existing_hash != current_hash:
+                raise ValueError(f"Repair rejected change to non-failed query: {query_id}")
+    repaired_query = plan_by_id[args.repair_query_id]
+    previous_hash = selected_entry.get("execution_compatibility_hash") or selected_entry.get("query_hash")
+    repaired_hash = query_compatibility_hash(repaired_query, args)
+    repair_details = {
+        "repair_mode": True,
+        "repair_query_id": args.repair_query_id,
+        "previous_query_hash": previous_hash,
+        "repaired_query_hash": repaired_hash,
+        "repair_reason": "QUERY_LENGTH_LIMIT",
+        "prior_attempts": int(selected_entry.get("attempts") or 0),
+        "repair_attempts": 0,
+    }
+    selected_entry.update(
+        {
+            "status": "PENDING",
+            "previous_query_hash": previous_hash,
+            "repaired_query_hash": repaired_hash,
+            "execution_compatibility_hash": repaired_hash,
+            "repair_reason": "QUERY_LENGTH_LIMIT",
+            "prior_attempts": repair_details["prior_attempts"],
+            "repair_attempts": 0,
+        }
+    )
+    return run_dir, manifest, checkpoint, paths, repair_details
+
+
+def rebuild_resume_history(
+    paths: dict[str, Path],
+    checkpoint: dict[str, Any],
+    plan: list[QuerySpec],
+    brand_name: str,
+    run_id: str,
+) -> tuple[list[NormalizedResult], dict[str, Any]]:
+    if not paths["raw_results"].exists():
+        raise ValueError(f"Resume raw results missing: {paths['raw_results']}")
+    if not paths["query_log"].exists():
+        raise ValueError(f"Resume query log missing: {paths['query_log']}")
+    raw_rows, raw_issues = read_jsonl_checked(paths["raw_results"])
+    query_log_rows, query_log_issues = read_jsonl_checked(paths["query_log"])
+    plan_by_id = {query.query_id: query for query in plan}
+    rows_by_query: dict[str, list[dict[str, Any]]] = {}
+    for row in raw_rows:
+        query_id = row.get("query_id")
+        if query_id not in plan_by_id:
+            raise ValueError(f"Resume raw result references unknown query: {query_id!r}")
+        checkpoint_entry = checkpoint.get("queries", {}).get(query_id)
+        if not checkpoint_entry:
+            raise ValueError(f"Resume raw result has no checkpoint entry: {query_id}")
+        if checkpoint_entry.get("status") not in {"COMPLETED", "CONTROL_COMPLETED"}:
+            raise ValueError(f"Resume raw result belongs to non-completed query: {query_id}")
+        if not isinstance(row.get("source_data"), dict):
+            raise ValueError(f"Resume raw result lacks source_data object: {query_id}")
+        rows_by_query.setdefault(query_id, []).append(row)
+    for query_id, entry in checkpoint.get("queries", {}).items():
+        if entry.get("status") not in {"COMPLETED", "CONTROL_COMPLETED"}:
+            continue
+        if not any(row.get("query_id") == query_id and row.get("status") in {"COMPLETED", "CONTROL_COMPLETED"} for row in query_log_rows):
+            raise ValueError(f"Resume checkpoint has no matching completed query log entry: {query_id}")
+        expected = int(entry.get("result_count") or 0)
+        actual = len(rows_by_query.get(query_id, []))
+        if actual != expected:
+            raise ValueError(f"Resume raw/checkpoint result_count mismatch for {query_id}: expected {expected}, found {actual}")
+    rebuilt: list[NormalizedResult] = []
+    for row in raw_rows:
+        query = plan_by_id[row["query_id"]]
+        rebuilt.append(
+            normalize_tavily_result(
+                run_id,
+                query,
+                brand_name,
+                row["source_data"],
+                int(row.get("result_position") or 0),
+            )
+        )
+    deduped, duplicates_removed = combine_normalized_results([], rebuilt)
+    mark_duplicates(deduped)
+    details = {
+        "resume_historical_results_loaded": True,
+        "resume_historical_result_count": len(deduped),
+        "resume_duplicates_removed": duplicates_removed,
+        "historical_raw_results_loaded": len(raw_rows),
+        "historical_normalized_results_rebuilt": len(deduped),
+        "historical_result_count": len(deduped),
+        "raw_final_partial_line_issues": raw_issues,
+        "query_log_final_partial_line_issues": query_log_issues,
+        "prior_normalized_csv_present_but_not_trusted": paths["normalized_results"].exists(),
+    }
+    return deduped, details
+
+
+def combine_normalized_results(
+    historical_results: list[NormalizedResult],
+    new_results: list[NormalizedResult],
+) -> tuple[list[NormalizedResult], int]:
+    combined: list[NormalizedResult] = []
+    seen_result_ids: set[str] = set()
+    duplicates_removed = 0
+    for result in [*historical_results, *new_results]:
+        if result.result_id in seen_result_ids:
+            duplicates_removed += 1
+            continue
+        seen_result_ids.add(result.result_id)
+        combined.append(result)
+    mark_duplicates(combined)
+    return combined, duplicates_removed
+
+
 def render_query_plan_markdown(plan: list[QuerySpec], mode: str, max_results: int, search_depth: str) -> str:
     lines = [
         f"# Domain Family Discovery Query Plan - {mode}",
@@ -1502,12 +2024,13 @@ def render_query_plan_markdown(plan: list[QuerySpec], mode: str, max_results: in
         "- include_raw_content: `True`",
         "- include_answer: `False`",
         "",
-        "| order | query_id | query_type | phase | category | included_in_discovery_metrics | exact_query |",
-        "|---:|---|---|---|---|---|---|",
+        "| order | query_id | query_type | phase | category | length | valid | included_in_discovery_metrics | exact_query |",
+        "|---:|---|---|---|---|---:|---|---|---|",
     ]
     for query in plan:
         escaped = query.exact_query.replace("|", "\\|")
-        lines.append(f"| {query.execution_order} | `{query.query_id}` | {query.query_type} | {query.phase} | {query.category} | {'yes' if query.included_in_discovery_metrics else 'no'} | `{escaped}` |")
+        length_status = query_length_status(query)
+        lines.append(f"| {query.execution_order} | `{query.query_id}` | {query.query_type} | {query.phase} | {query.category} | {length_status['query_length']} | {'yes' if length_status['query_length_valid'] else 'no'} | {'yes' if query.included_in_discovery_metrics else 'no'} | `{escaped}` |")
     lines.extend(
         [
             "",
@@ -1548,6 +2071,28 @@ def build_manifest(args: argparse.Namespace, run_id: str, mode: str, paths: dict
         "early_stop_triggered": False,
         "discovery_queries_skipped": 0,
         "controls_executed": 0,
+        "resume_historical_results_loaded": False,
+        "resume_historical_result_count": 0,
+        "resume_new_result_count": 0,
+        "resume_combined_result_count": 0,
+        "resume_duplicates_removed": 0,
+        "historical_raw_results_loaded": 0,
+        "historical_normalized_results_rebuilt": 0,
+        "historical_result_count": 0,
+        "new_result_count": 0,
+        "combined_result_count": 0,
+        "duplicate_results_removed_on_resume": 0,
+        "minimum_phase_requirements_validated": validate_minimum_methodological_plan(plan)[0],
+        "retained_noise_rate_provisional": None,
+        "retained_noise_numerator": None,
+        "retained_noise_denominator": None,
+        "traceability_gate_passed": None,
+        "repair_mode": bool(getattr(args, "repair_failed_run_dir", None)),
+        "repair_failed_run_dir": getattr(args, "repair_failed_run_dir", None),
+        "repair_query_id": getattr(args, "repair_query_id", None),
+        "query_count_discovery_planned": discovery_count,
+        "query_count_discovery_completed": 0,
+        "execution_incomplete": None if mode == "DRY_RUN" else True,
         "query_counts": {"discovery": discovery_count, "control": control_count, "total": len(plan)},
         "budget": {
             "configured_max_results": args.max_results,
@@ -1573,6 +2118,8 @@ def build_manifest(args: argparse.Namespace, run_id: str, mode: str, paths: dict
             "resume_run_dir": getattr(args, "resume_run_dir", None),
             "query_ids": args.query_ids,
             "stop_after_phase": args.stop_after_phase,
+            "repair_failed_run_dir": getattr(args, "repair_failed_run_dir", None),
+            "repair_query_id": getattr(args, "repair_query_id", None),
         },
         "timestamps": {"created_at": utc_now()},
         "output_paths": {key: str(value) for key, value in paths.items()},
@@ -1594,6 +2141,7 @@ def build_manifest(args: argparse.Namespace, run_id: str, mode: str, paths: dict
 def run_dry_run(args: argparse.Namespace) -> int:
     run_id = local_run_stamp()
     plan = filter_plan(build_query_plan(), args.query_ids, args.stop_after_phase)
+    require_valid_query_lengths(plan)
     paths = build_output_paths(Path(args.output_root).resolve(), "DRY_RUN", run_id)
     validation_ok, validation_checks = validate_query_plan(plan)
     self_tests_ok, self_tests = run_internal_self_tests(plan)
@@ -1674,6 +2222,7 @@ def query_payload(query: QuerySpec, args: argparse.Namespace) -> dict[str, Any]:
     data["execution_compatibility_hash"] = query_compatibility_hash(query, args)
     data["logic_version"] = LOGIC_VERSION
     data["checkpoint_schema_version"] = CHECKPOINT_SCHEMA_VERSION
+    data.update(query_length_status(query))
     data["tavily_parameters_prepared"] = {
         "query": query.exact_query,
         "search_depth": args.search_depth,
@@ -1686,17 +2235,99 @@ def query_payload(query: QuerySpec, args: argparse.Namespace) -> dict[str, Any]:
     return data
 
 
+def validate_minimum_methodological_plan(plan: list[QuerySpec]) -> tuple[bool, dict[str, Any]]:
+    full_plan = build_query_plan()
+    selected_ids = {query.query_id for query in plan}
+    required_phase_a = {query.query_id for query in full_plan if query.included_in_discovery_metrics and query.phase == "A"}
+    selected_phase_b = {query.query_id for query in plan if query.included_in_discovery_metrics and query.phase == "B"}
+    required_controls = {query.query_id for query in full_plan if not query.included_in_discovery_metrics}
+    selected_discovery = {query.query_id for query in plan if query.included_in_discovery_metrics}
+    detail = {
+        "missing_phase_a_query_ids": sorted(required_phase_a - selected_ids),
+        "phase_b_discovery_count": len(selected_phase_b),
+        "minimum_phase_b_discovery_count": 2,
+        "discovery_count": len(selected_discovery),
+        "minimum_discovery_count": 4,
+        "missing_control_query_ids": sorted(required_controls - selected_ids),
+    }
+    ok = not detail["missing_phase_a_query_ids"] and len(selected_phase_b) >= 2 and len(selected_discovery) >= 4 and not detail["missing_control_query_ids"]
+    detail["minimum_phase_requirements_validated"] = ok
+    return ok, detail
+
+
 def filter_plan(plan: list[QuerySpec], query_ids: str | None, stop_after_phase: str | None) -> list[QuerySpec]:
     output = plan
     if query_ids:
         wanted = {item.strip() for item in query_ids.split(",") if item.strip()}
+        known = {query.query_id for query in plan}
+        unknown = sorted(wanted - known)
+        if unknown:
+            raise ValueError(f"Unknown query IDs: {', '.join(unknown)}")
         output = [query for query in output if query.query_id in wanted]
     if stop_after_phase:
         allowed_phases = {"A": {"A"}, "B": {"A", "B"}, "C": {"A", "B", "C"}, "control": {"A", "B", "C", "control"}}
         phases = allowed_phases.get(stop_after_phase)
         if phases:
             output = [query for query in output if query.phase in phases or query.phase == "control"]
-    return sorted(output, key=lambda q: q.execution_order)
+    output = sorted(output, key=lambda q: q.execution_order)
+    valid, detail = validate_minimum_methodological_plan(output)
+    if not valid:
+        raise ValueError(f"Plan does not satisfy minimum methodological requirements: {json.dumps(detail, ensure_ascii=True, sort_keys=True)}")
+    return output
+
+
+def classify_search_error(error: Exception | str) -> str:
+    text = normalize_search_text(str(error))
+    non_retryable_patterns = [
+        "query is too long",
+        "query too long",
+        "invalid parameter",
+        "malformed request",
+        "authentication error",
+        "unauthorized",
+        "unsupported argument",
+    ]
+    transient_patterns = ["timeout", "timed out", "rate limit", "too many requests", "connection", "temporarily unavailable", "http 500", "http 502", "http 503", "http 504"]
+    if any(pattern in text for pattern in non_retryable_patterns):
+        return "NON_RETRYABLE_ERROR"
+    if any(pattern in text for pattern in transient_patterns):
+        return "RETRYABLE_TRANSIENT_ERROR"
+    return "NON_RETRYABLE_ERROR"
+
+
+def search_with_retry_policy(client: Any, query: QuerySpec, args: argparse.Namespace) -> tuple[dict[str, Any] | None, str | None, int, str | None, list[dict[str, Any]]]:
+    global NETWORK_CALLS, TAVILY_SEARCH_CALLS
+    response: dict[str, Any] | None = None
+    error_text: str | None = None
+    error_classification: str | None = None
+    attempt_records: list[dict[str, Any]] = []
+    attempts = 0
+    for attempt in range(1, args.max_retries + 1):
+        attempts = attempt
+        try:
+            NETWORK_CALLS += 1
+            TAVILY_SEARCH_CALLS += 1
+            candidate = client.search(
+                query=query.exact_query,
+                search_depth=args.search_depth,
+                max_results=args.max_results,
+                include_raw_content=True,
+                include_answer=False,
+                timeout=args.timeout,
+            )
+            response = candidate if isinstance(candidate, dict) else {}
+            error_text = None
+            error_classification = None
+            break
+        except Exception as exc:
+            error_text = str(exc)
+            error_classification = classify_search_error(exc)
+            attempt_records.append({"attempt": attempt, "error": error_text, "error_classification": error_classification})
+            if error_classification == "NON_RETRYABLE_ERROR":
+                break
+            if attempt < args.max_retries:
+                time.sleep(min(60, 3 * (2 ** (attempt - 1))))
+    return response, error_text, attempts, error_classification, attempt_records
 
 
 def run_execute(args: argparse.Namespace) -> int:
@@ -1708,9 +2339,35 @@ def run_execute(args: argparse.Namespace) -> int:
         print("Execution refused: --dry-run and --execute are mutually exclusive.", file=sys.stderr)
         return 2
     plan = filter_plan(build_query_plan(), args.query_ids, args.stop_after_phase)
+    require_valid_query_lengths(plan)
     checkpoint_reused = False
     resume_manifest: dict[str, Any] | None = None
-    if args.resume_run_dir:
+    repair_details: dict[str, Any] = {"repair_mode": False}
+    historical_results: list[NormalizedResult] = []
+    resume_details: dict[str, Any] = {
+        "resume_historical_results_loaded": False,
+        "resume_historical_result_count": 0,
+        "resume_duplicates_removed": 0,
+        "historical_raw_results_loaded": 0,
+        "historical_normalized_results_rebuilt": 0,
+        "historical_result_count": 0,
+        "raw_final_partial_line_issues": [],
+        "query_log_final_partial_line_issues": [],
+    }
+    if args.repair_failed_run_dir:
+        try:
+            run_dir, resume_manifest, checkpoint, paths, repair_details = validate_repair_failed_run_dir(args, plan)
+        except Exception as exc:
+            print(json.dumps({"status": "FAILED_SAFE_REPAIR_VALIDATION", "error": str(exc)}, ensure_ascii=True), file=sys.stderr)
+            return 2
+        run_id = str(resume_manifest.get("run_id") or run_dir.name.replace("run_", ""))
+        checkpoint_reused = True
+        try:
+            historical_results, resume_details = rebuild_resume_history(paths, checkpoint, plan, args.brand, run_id)
+        except Exception as exc:
+            print(json.dumps({"status": "FAILED_SAFE_REPAIR_HISTORY", "error": str(exc)}, ensure_ascii=True), file=sys.stderr)
+            return 2
+    elif args.resume_run_dir:
         try:
             run_dir, resume_manifest, checkpoint, paths = validate_resume_run_dir(args, plan)
         except Exception as exc:
@@ -1718,6 +2375,12 @@ def run_execute(args: argparse.Namespace) -> int:
             return 2
         run_id = str(resume_manifest.get("run_id") or run_dir.name.replace("run_", ""))
         checkpoint_reused = True
+        try:
+            historical_results, resume_details = rebuild_resume_history(paths, checkpoint, plan, args.brand, run_id)
+        except Exception as exc:
+            append_jsonl(paths["errors"], {"run_id": run_id, "status": "FAILED_SAFE_RESUME_HISTORY", "error": str(exc), "timestamp": utc_now()})
+            print(json.dumps({"status": "FAILED_SAFE_RESUME_HISTORY", "error": str(exc)}, ensure_ascii=True), file=sys.stderr)
+            return 2
     else:
         run_id = local_run_stamp()
         paths = build_output_paths(Path(args.output_root).resolve(), "EXECUTE", run_id)
@@ -1739,14 +2402,29 @@ def run_execute(args: argparse.Namespace) -> int:
     paths["query_plan_md"].write_text(render_query_plan_markdown(plan, "EXECUTE", args.max_results, args.search_depth), encoding="utf-8")
     client = TavilyClient(api_key=api_key)
     TAVILY_CLIENT_INSTANTIATIONS += 1
-    normalized_results: list[NormalizedResult] = []
+    normalized_results: list[NormalizedResult] = list(historical_results)
+    new_normalized_results: list[NormalizedResult] = []
     query_batches: list[list[NormalizedResult]] = []
+    if checkpoint_reused:
+        historical_by_query = {query.query_id: [] for query in plan if query.included_in_discovery_metrics}
+        for result in historical_results:
+            if result.query_id in historical_by_query:
+                historical_by_query[result.query_id].append(result)
+        for query in plan:
+            entry = checkpoint.get("queries", {}).get(query.query_id, {})
+            if query.included_in_discovery_metrics and entry.get("status") == "COMPLETED":
+                query_batches.append(historical_by_query.get(query.query_id, []))
     technical_failure = False
     early_stop_info: dict[str, Any] | None = None
     discovery_queries_skipped = 0
     controls_executed = 0
 
     for query in plan:
+        if args.repair_failed_run_dir and query.query_id != args.repair_query_id:
+            entry = checkpoint.get("queries", {}).get(query.query_id, {})
+            if entry.get("status") not in {"COMPLETED", "CONTROL_COMPLETED", "SKIPPED_EARLY_STOP"}:
+                append_jsonl(paths["query_log"], log_query(run_id, query, "REPAIR_NOT_SELECTED", 0, 0, None, query_compatibility_hash(query, args)))
+            continue
         compatibility_hash = query_compatibility_hash(query, args)
         q_hash = query.query_hash(args.search_depth, args.max_results, True, False)
         if early_stop_info and query.included_in_discovery_metrics:
@@ -1775,6 +2453,9 @@ def run_execute(args: argparse.Namespace) -> int:
             discovery_queries_skipped += 1
             append_jsonl(paths["query_log"], log_query(run_id, query, "SKIPPED_EARLY_STOP", 0, 0, "resume_preserved_early_stop", compatibility_hash))
             continue
+        repair_entry_metadata = {}
+        if args.repair_failed_run_dir:
+            repair_entry_metadata = {key: value for key, value in checkpoint.get("queries", {}).get(query.query_id, {}).items() if key in {"previous_query_hash", "repaired_query_hash", "repair_reason", "prior_attempts", "repair_attempts"}}
         checkpoint.setdefault("queries", {})[query.query_id] = {
             "query_id": query.query_id,
             "status": "RUNNING",
@@ -1785,65 +2466,57 @@ def run_execute(args: argparse.Namespace) -> int:
             "result_count": 0,
             "query_hash": q_hash,
             "execution_compatibility_hash": compatibility_hash,
+            **repair_entry_metadata,
         }
         save_checkpoint(paths["checkpoint"], checkpoint)
+        if args.repair_failed_run_dir:
+            append_jsonl(paths["query_log"], {"run_id": run_id, "query_id": query.query_id, "status": "REPAIR_PREPARED", "timestamp": utc_now(), **repair_details})
         results_for_query: list[NormalizedResult] = []
-        error_text = None
-        for attempt in range(1, args.max_retries + 1):
-            checkpoint["queries"][query.query_id]["attempts"] = attempt
-            try:
-                NETWORK_CALLS += 1
-                TAVILY_SEARCH_CALLS += 1
-                response = client.search(
-                    query=query.exact_query,
-                    search_depth=args.search_depth,
-                    max_results=args.max_results,
-                    include_raw_content=True,
-                    include_answer=False,
-                    timeout=args.timeout,
-                )
-                raw_results = response.get("results", []) if isinstance(response, dict) else []
-                for idx, item in enumerate(raw_results, start=1):
-                    record = {
-                        "run_id": run_id,
-                        "query_id": query.query_id,
-                        "query_type": query.query_type,
-                        "phase": query.phase,
-                        "category": query.category,
-                        "query_text": query.exact_query,
-                        "timestamp": utc_now(),
-                        "result_position": idx,
-                        "source_data": item,
-                    }
-                    append_jsonl(paths["raw_results"], record)
-                    results_for_query.append(normalize_tavily_result(run_id, query, args.brand, item, idx))
-                error_text = None
-                break
-            except Exception as exc:  # pragma: no cover - future execution path only
-                error_text = str(exc)
-                append_jsonl(paths["errors"], {"run_id": run_id, "query_id": query.query_id, "attempt": attempt, "error": error_text, "timestamp": utc_now()})
-                if attempt < args.max_retries:
-                    time.sleep(min(60, 3 * (2 ** (attempt - 1))))
+        response, error_text, attempts, error_classification, attempt_records = search_with_retry_policy(client, query, args)
+        checkpoint["queries"][query.query_id]["attempts"] = attempts
+        if getattr(args, "repair_failed_run_dir", None):
+            checkpoint["queries"][query.query_id]["repair_attempts"] = attempts
+        for attempt_record in attempt_records:
+            append_jsonl(paths["errors"], {"run_id": run_id, "query_id": query.query_id, "timestamp": utc_now(), **attempt_record})
+        raw_results = response.get("results", []) if response is not None else []
+        for idx, item in enumerate(raw_results, start=1):
+            record = {
+                "run_id": run_id,
+                "query_id": query.query_id,
+                "query_type": query.query_type,
+                "phase": query.phase,
+                "category": query.category,
+                "query_text": query.exact_query,
+                "timestamp": utc_now(),
+                "result_position": idx,
+                "source_data": item,
+            }
+            append_jsonl(paths["raw_results"], record)
+            results_for_query.append(normalize_tavily_result(run_id, query, args.brand, item, idx))
         final_status = "CONTROL_COMPLETED" if query.phase == "control" and error_text is None else "COMPLETED" if error_text is None else "FAILED"
         checkpoint["queries"][query.query_id].update(
             {
                 "status": final_status,
                 "completed_at": utc_now(),
                 "error": error_text,
+                "error_classification": error_classification,
                 "result_count": len(results_for_query),
                 "query_hash": q_hash,
                 "execution_compatibility_hash": compatibility_hash,
             }
         )
         save_checkpoint(paths["checkpoint"], checkpoint)
-        append_jsonl(paths["query_log"], log_query(run_id, query, final_status, checkpoint["queries"][query.query_id]["attempts"], len(results_for_query), error_text, compatibility_hash))
+        log_status = "NON_RETRYABLE_ERROR" if error_classification == "NON_RETRYABLE_ERROR" else final_status
+        append_jsonl(paths["query_log"], log_query(run_id, query, log_status, checkpoint["queries"][query.query_id]["attempts"], len(results_for_query), error_text, compatibility_hash))
         normalized_results.extend(results_for_query)
+        new_normalized_results.extend(results_for_query)
         if query.phase == "control" and final_status == "CONTROL_COMPLETED":
             controls_executed += 1
         if query.included_in_discovery_metrics:
             query_batches.append(results_for_query)
             mark_duplicates(normalized_results)
-            stop, reason = should_stop_after_query(query_batches, min_discovery_executed=4, max_discovery_queries=10)
+            early_stop_decision = evaluate_early_stop(query_batches, min_discovery_executed=4, max_discovery_queries=10)
+            stop, reason = bool(early_stop_decision["stop"]), early_stop_decision["reason"]
             if stop:
                 early_stop_info = {
                     "stop_reason": reason,
@@ -1851,6 +2524,9 @@ def run_execute(args: argparse.Namespace) -> int:
                     "stop_triggered_at": utc_now(),
                     "discovery_queries_completed": len(query_batches),
                     "discovery_queries_skipped": len([q for q in plan if q.included_in_discovery_metrics and q.execution_order > query.execution_order]),
+                    "retained_noise_rate_provisional": early_stop_decision["retained_noise_rate_provisional"],
+                    "retained_noise_numerator": early_stop_decision["retained_noise_numerator"],
+                    "retained_noise_denominator": early_stop_decision["retained_noise_denominator"],
                 }
                 checkpoint["early_stop"] = early_stop_info
                 save_checkpoint(paths["checkpoint"], checkpoint)
@@ -1860,7 +2536,8 @@ def run_execute(args: argparse.Namespace) -> int:
         if final_status == "FAILED":
             technical_failure = True
 
-    mark_duplicates(normalized_results)
+    normalized_results, combined_duplicates_removed = combine_normalized_results(historical_results, new_normalized_results)
+    final_noise_summary = calculate_retained_noise_provisional(normalized_results)
     metrics = calculate_metrics(normalized_results, plan, BASELINE_DOMAINS)
     write_csv(paths["normalized_results"], [asdict(r) for r in normalized_results])
     write_csv(paths["domain_candidates"], collect_candidate_domains(normalized_results))
@@ -1871,9 +2548,12 @@ def run_execute(args: argparse.Namespace) -> int:
     noise_rows = [asdict(r) for r in normalized_results if any(role["role_candidate"] == "HOMONYM_OR_IRRELEVANT" for role in r.role_candidates)]
     write_csv(paths["noise_results"], noise_rows)
     write_json(paths["metrics"], metrics)
-    safety = evaluate_safety(normalized_results, plan)
-    discovery = evaluate_discovery(metrics)
-    utility = evaluate_v3_utility(normalized_results, metrics)
+    planned_discovery_count = len([query for query in plan if query.included_in_discovery_metrics])
+    completed_discovery_count = len([query for query in plan if query.included_in_discovery_metrics and checkpoint.get("queries", {}).get(query.query_id, {}).get("status") == "COMPLETED"])
+    execution_incomplete = bool(technical_failure or completed_discovery_count < planned_discovery_count)
+    safety = evaluate_safety(normalized_results, plan, execution_incomplete=execution_incomplete)
+    discovery = evaluate_discovery(metrics, technical_failure=technical_failure, query_count_discovery_planned=planned_discovery_count, query_count_discovery_completed=completed_discovery_count)
+    utility = evaluate_v3_utility(normalized_results, metrics, technical_failure=technical_failure, query_count_discovery_planned=planned_discovery_count, query_count_discovery_completed=completed_discovery_count)
     report = render_micro_pilot_report(args.brand, metrics, safety, discovery, utility, technical_failure)
     paths["micro_pilot_report"].write_text(report, encoding="utf-8")
     manifest = build_manifest(args, run_id, "EXECUTE", paths, plan, True, True)
@@ -1892,6 +2572,21 @@ def run_execute(args: argparse.Namespace) -> int:
             "early_stop_triggered": bool(early_stop_info),
             "discovery_queries_skipped": discovery_queries_skipped,
             "controls_executed": controls_executed,
+            **resume_details,
+            "resume_new_result_count": len(new_normalized_results),
+            "resume_combined_result_count": len(normalized_results),
+            "resume_duplicates_removed": resume_details.get("resume_duplicates_removed", 0) + combined_duplicates_removed,
+            "new_result_count": len(new_normalized_results),
+            "combined_result_count": len(normalized_results),
+            "duplicate_results_removed_on_resume": resume_details.get("resume_duplicates_removed", 0) + combined_duplicates_removed,
+            "retained_noise_rate_provisional": final_noise_summary["retained_noise_rate_provisional"],
+            "retained_noise_numerator": final_noise_summary["retained_noise_numerator"],
+            "retained_noise_denominator": final_noise_summary["retained_noise_denominator"],
+            "traceability_gate_passed": safety["safety_gate_results"].get("TRACEABILITY_COMPLETE"),
+            "query_count_discovery_planned": planned_discovery_count,
+            "query_count_discovery_completed": completed_discovery_count,
+            "execution_incomplete": execution_incomplete,
+            **repair_details,
             "raw_results_generated": paths["raw_results"].exists(),
             "real_results_generated": paths["raw_results"].exists(),
             "status": "EXECUTION_COMPLETED_WITH_ERRORS" if technical_failure else "EXECUTION_COMPLETED",
@@ -1955,12 +2650,141 @@ def render_micro_pilot_report(
     return "\n".join(lines) + "\n"
 
 
+GENERIC_EXTERNAL_DOMAINS = {
+    "wa.me", "wa.link", "api.whatsapp.com", "t.me", "youtube.com", "facebook.com", "web.facebook.com", "instagram.com", "linkedin.com", "x.com", "twitter.com", "t.co", "pin.it", "pinterest.com",
+    "apps.apple.com", "play.google.com", "chrome.google.com", "android.com", "apple.com", "amazon.com", "w3.org", "adobe.com", "get.adobe.com", "zoom.us", "vimeo.com",
+    "your-m3u-url.com", "your-epg-url.com", "192.168.1.100", "iboplayer.com", "iptvsmarters.com",
+}
+GENERIC_EXTERNAL_FRAGMENTS = ("googleusercontent.com", "gstatic.com", "flaticon.com", "trustpilot", "doubleclick", "analytics", "onetrust", "cookielaw", "cookiepedia", "adnxs", "mathtag", "adsrvr", "blob.core.windows.net", "cloudflare", "licdn.com", "imgkit.net", "pixlee.com")
+
+
+def audit_domain_classification(domain: str, role_name: str) -> tuple[str, str]:
+    lowered = (domain or "").lower()
+    if role_name == "HOMONYM_OR_IRRELEVANT" or any(token in lowered for token in ("ihg", "hotel", "voco.dental")):
+        return "HOMONYM_OR_IRRELEVANT", "hotel/IHG/dental or explicit homonym signal"
+    if lowered in GENERIC_EXTERNAL_DOMAINS or any(fragment in lowered for fragment in GENERIC_EXTERNAL_FRAGMENTS):
+        return "GENERIC_EXTERNAL_NOT_IDENTITY", "social, player, placeholder, CDN, analytics, or shared infrastructure"
+    if lowered in BASELINE_DOMAINS:
+        return "BASELINE_FAMILY_DOMAIN", "already present in the historical Voco baseline"
+    if "voco" in lowered and role_name in {"CONFIRMED_RESELLER", "POSSIBLE_RESELLER", "POSSIBLE_MASTER_DISTRIBUTOR"}:
+        return "RESELLER_OR_DISTRIBUTION_SIGNAL", "Voco-related reseller/distribution role; not operator identity"
+    if "voco" in lowered:
+        return "POTENTIAL_FAMILY_DOMAIN_REVIEW", "Voco-related hostname requiring identity review; no officiality implied"
+    if role_name in {"CONFIRMED_RESELLER", "POSSIBLE_RESELLER", "POSSIBLE_MASTER_DISTRIBUTOR"}:
+        return "RESELLER_OR_DISTRIBUTION_SIGNAL", "reseller/distribution evidence only"
+    return "UNRESOLVED_EXTERNAL_RELATION", "external domain with no independent identity attribution"
+
+
+def run_offline_audit(args: argparse.Namespace) -> int:
+    run_dir = Path(args.audit_run_dir).resolve()
+    if not run_dir.exists() or not run_dir.is_dir():
+        raise ValueError(f"Audit run directory does not exist: {run_dir}")
+    paths = build_paths_for_run_dir(run_dir)
+    manifest = json.loads(paths["execution_manifest"].read_text(encoding="utf-8"))
+    checkpoint = load_checkpoint(paths["checkpoint"])
+    plan = build_query_plan()
+    require_valid_query_lengths(plan)
+    run_id = str(manifest.get("run_id") or run_dir.name.replace("run_", ""))
+    results, rebuild_details = rebuild_resume_history(paths, checkpoint, plan, manifest.get("parameters", {}).get("brand") or DEFAULT_BRAND, run_id)
+    mark_duplicates(results)
+    discovery_query_ids = {query.query_id for query in plan if query.included_in_discovery_metrics}
+    nonduplicate_discovery = [result for result in results if result.query_id in discovery_query_ids and not result.is_duplicate]
+    candidates = collect_candidate_domains(nonduplicate_discovery)
+    candidate_rows = []
+    for candidate in candidates:
+        classification, reason = audit_domain_classification(candidate["domain"], candidate.get("role_candidate") or "UNKNOWN_ROLE")
+        candidate_rows.append(
+            {
+                "domain": candidate["domain"],
+                "automatic_role_candidate": candidate.get("role_candidate"),
+                "automatic_relevant_family_candidate": candidate.get("is_relevant_family_candidate"),
+                "automatic_signal_count": candidate.get("signal_count"),
+                "is_baseline_domain": candidate["domain"] in BASELINE_DOMAINS,
+                "is_one_of_14_automatic_new_candidates": bool(candidate.get("is_relevant_family_candidate") and candidate["domain"] not in BASELINE_DOMAINS),
+                "offline_audit_classification": classification,
+                "offline_audit_reason": reason,
+                "identity_confirmed": False,
+                "query_ids": candidate.get("query_ids"),
+                "evidence_urls": candidate.get("evidence_urls"),
+            }
+        )
+    relationship_map: dict[str, dict[str, Any]] = {}
+    for result in nonduplicate_discovery:
+        for target in result.extracted_fields.get("linked_domains", {}).get("value", []):
+            relationship_id = build_relationship_id(result.canonical_hostname, "linked_domain", target, result.canonical_url)
+            classification, reason = audit_domain_classification(target, "UNKNOWN_ROLE")
+            relationship_map.setdefault(
+                relationship_id,
+                {
+                    "relationship_id": relationship_id,
+                    "source_domain": result.canonical_hostname,
+                    "target_domain": target,
+                    "source_url": result.canonical_url,
+                    "query_id": result.query_id,
+                    "offline_audit_classification": classification,
+                    "offline_audit_reason": reason,
+                    "identity_useful": classification in {"BASELINE_FAMILY_DOMAIN", "POTENTIAL_FAMILY_DOMAIN_REVIEW", "RESELLER_OR_DISTRIBUTION_SIGNAL"},
+                    "officiality_confirmed": False,
+                },
+            )
+    relationship_rows = list(relationship_map.values())
+    metrics = calculate_metrics(results, plan, BASELINE_DOMAINS)
+    planned_discovery = len([query for query in plan if query.included_in_discovery_metrics])
+    completed_discovery = len([query for query in plan if query.included_in_discovery_metrics and checkpoint.get("queries", {}).get(query.query_id, {}).get("status") == "COMPLETED"])
+    technical_failure = completed_discovery < planned_discovery or any(entry.get("status") == "FAILED" for entry in checkpoint.get("queries", {}).values())
+    audited_new_candidates = [row for row in candidate_rows if row["is_one_of_14_automatic_new_candidates"]]
+    generic_new_candidates = [row for row in audited_new_candidates if row["offline_audit_classification"] == "GENERIC_EXTERNAL_NOT_IDENTITY"]
+    useful_relationships = [row for row in relationship_rows if row["identity_useful"]]
+    generic_relationships = [row for row in relationship_rows if not row["identity_useful"]]
+    recalculated = {
+        **metrics,
+        "query_count_discovery_planned": planned_discovery,
+        "query_count_discovery_completed": completed_discovery,
+        "technical_failure": technical_failure,
+        "automatic_candidate_domain_denominator": len(candidates),
+        "automatic_relevant_candidate_count": len([row for row in candidate_rows if row["automatic_relevant_family_candidate"]]),
+        "automatic_new_candidate_count": len(audited_new_candidates),
+        "automatic_new_candidates_generic_external_count": len(generic_new_candidates),
+        "unique_relationship_count_recalculated": len(relationship_rows),
+        "identity_useful_relationship_count_offline_audit": len(useful_relationships),
+        "generic_or_unresolved_relationship_count_offline_audit": len(generic_relationships),
+        "unresolved_identity_rate_explanation": "The prior 0.0 is an artifact of inherited source-level roles and signal_count; it does not demonstrate resolved domain identity.",
+        "discovery_evaluation": evaluate_discovery(metrics, technical_failure=technical_failure, query_count_discovery_planned=planned_discovery, query_count_discovery_completed=completed_discovery),
+        "v3_utility_evaluation": evaluate_v3_utility(results, metrics, technical_failure=technical_failure, query_count_discovery_planned=planned_discovery, query_count_discovery_completed=completed_discovery),
+        "v3_utility_pass_defensible": False,
+        "rebuild_details": rebuild_details,
+    }
+    output_dir = Path(args.audit_output_dir).resolve() if args.audit_output_dir else run_dir.parent / f"audit_run_{run_id}"
+    if output_dir.exists():
+        raise ValueError(f"Audit output directory already exists: {output_dir}")
+    output_dir.mkdir(parents=True)
+    write_csv(output_dir / "current_candidates_audit.csv", candidate_rows)
+    write_csv(output_dir / "current_relationships_audit.csv", relationship_rows)
+    write_json(output_dir / "current_metrics_recalculated.json", recalculated)
+    report_lines = [
+        f"# Offline audit of run {run_id}", "", "No network, Tavily, credit use, or officiality determination was performed.", "",
+        "## Execution completeness", "", f"- discovery planned: {planned_discovery}", f"- discovery completed: {completed_discovery}", f"- technical failure: {technical_failure}",
+        f"- spontaneous_vocotv_ai_recovery: {metrics.get('spontaneous_vocotv_ai_recovery')}", f"- relevant_domain_precision: {metrics.get('relevant_domain_precision')}", "",
+        "## Candidate audit", "", f"- auditable candidate denominator: {len(candidates)}", f"- automatically relevant candidates: {recalculated['automatic_relevant_candidate_count']}",
+        f"- automatic new candidates: {len(audited_new_candidates)}", f"- automatic new candidates that are generic external infrastructure: {len(generic_new_candidates)}", "",
+        "The automatic candidate rule propagates source-page brand context to linked domains. Therefore social links, shared players, placeholders, CDN assets and infrastructure can be counted as relevant without independent identity attribution.", "",
+        "## Relationship audit", "", f"- unique relationships recalculated: {len(relationship_rows)}", f"- identity-useful after offline classification: {len(useful_relationships)}", f"- generic or unresolved external relationships: {len(generic_relationships)}", "",
+        "The previous new_useful_relationship_count treats every unique linked-domain relationship as useful. This includes generic social, CDN, analytics, player and infrastructure links, so 129 is not defensible as an identity-utility count.", "",
+        "## Identity resolution", "", "The previous unresolved_identity_rate of 0.0 is not evidence that identity was resolved. Linked domains inherit roles and signal counts from their source result, which suppresses UNKNOWN_ROLE without independently attributing the target domain.", "",
+        "## Verdict", "", f"- DISCOVERY_VERDICT: {recalculated['discovery_evaluation']['verdict']}", f"- V3_UTILITY_VERDICT: {recalculated['v3_utility_evaluation']['verdict']}", "- Prior V3_UTILITY_PASS defensible: NO", "- Officiality determined: NO", "",
+    ]
+    (output_dir / "current_run_audit_report.md").write_text("\n".join(report_lines), encoding="utf-8")
+    print(json.dumps({"mode": "OFFLINE_AUDIT", "source_run_dir": str(run_dir), "output_dir": str(output_dir), "historical_results": len(results), "network_calls": NETWORK_CALLS, "credential_reads": CREDENTIAL_READS, "tavily_client_instantiations": TAVILY_CLIENT_INSTANTIATIONS, "tavily_search_calls": TAVILY_SEARCH_CALLS}, ensure_ascii=True, indent=2))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Independent IPTV domain family discovery runner.")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--dry-run", action="store_true", help="Validate/export plan offline; no API key, no Tavily, no network.")
     mode.add_argument("--execute", action="store_true", help="Future protected real execution mode.")
     mode.add_argument("--validate-design", action="store_true", help="Alias for offline design validation.")
+    mode.add_argument("--audit-run-dir", default=None, help="Audit one existing run fully offline without Tavily or credentials.")
     parser.add_argument("--confirm-credit-use", action="store_true", help="Required together with --execute before Tavily can be used.")
     parser.add_argument("--brand", default=DEFAULT_BRAND)
     parser.add_argument("--output-root", default=str(DEFAULT_OUTPUT_ROOT))
@@ -1970,6 +2794,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timeout", type=float, default=60.0)
     parser.add_argument("--max-retries", type=int, default=3)
     parser.add_argument("--resume-run-dir", default=None, help="Resume a protected execution from an existing run directory.")
+    parser.add_argument("--repair-failed-run-dir", default=None, help="Repair one explicitly selected FAILED query in an existing execution run.")
+    parser.add_argument("--repair-query-id", default=None, help="FAILED query ID to repair; requires --repair-failed-run-dir.")
+    parser.add_argument("--audit-output-dir", default=None, help="Output directory for --audit-run-dir.")
     parser.add_argument("--query-ids", default=None, help="Comma-separated query IDs.")
     parser.add_argument("--stop-after-phase", choices=["A", "B", "C", "control"], default=None)
     return parser
@@ -1994,9 +2821,33 @@ def main(argv: list[str] | None = None) -> int:
     if args.resume_run_dir and args.dry_run:
         print("--resume-run-dir is incompatible with --dry-run.", file=sys.stderr)
         return 2
-    if args.dry_run:
-        return run_dry_run(args)
-    return run_execute(args)
+    if args.resume_run_dir and args.repair_failed_run_dir:
+        print("--resume-run-dir and --repair-failed-run-dir are mutually exclusive.", file=sys.stderr)
+        return 2
+    if args.repair_failed_run_dir and not args.execute:
+        print("--repair-failed-run-dir requires --execute.", file=sys.stderr)
+        return 2
+    if args.repair_failed_run_dir and not args.repair_query_id:
+        print("--repair-failed-run-dir requires --repair-query-id.", file=sys.stderr)
+        return 2
+    if args.repair_query_id and not args.repair_failed_run_dir:
+        print("--repair-query-id requires --repair-failed-run-dir.", file=sys.stderr)
+        return 2
+    if args.repair_failed_run_dir and args.query_ids:
+        print("Use --repair-query-id, not --query-ids, in repair mode.", file=sys.stderr)
+        return 2
+    if args.audit_output_dir and not args.audit_run_dir:
+        print("--audit-output-dir requires --audit-run-dir.", file=sys.stderr)
+        return 2
+    try:
+        if args.audit_run_dir:
+            return run_offline_audit(args)
+        if args.dry_run:
+            return run_dry_run(args)
+        return run_execute(args)
+    except ValueError as exc:
+        print(json.dumps({"status": "FAILED_SAFE_VALIDATION", "error": str(exc)}, ensure_ascii=True), file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":
