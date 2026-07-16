@@ -389,7 +389,7 @@ Caveat de serializacion: el campo superior `repair_attempts` del manifest perman
 - La API key estaba disponible en el entorno para la ejecucion autorizada, pero su valor no se registro ni debe incluirse en ningun artefacto.
 - Durante este cierre documental se realizaron cero llamadas Tavily, cero llamadas de red de investigacion y se consumieron cero creditos adicionales.
 
-### Proxima tarea unica
+### Proxima tarea unica historica (completada por la auditoria final offline)
 
 Auditar offline los 80 registros finales combinados y recalcular:
 
@@ -607,7 +607,7 @@ Lote 2 no autorizado.
 
 NO ejecutar nuevas consultas Tavily.
 
-Siguiente paso unico:
+Siguiente paso unico historico (completado por V3/V4):
 
 - redisenar la logica de aceptacion V3 sin usar Tavily.
 
@@ -649,7 +649,7 @@ Estado confirmado:
 - 17 revendedores y 1 afiliado fueron aceptados incorrectamente;
 - dictamen global: FAIL.
 
-La siguiente tarea única es rediseñar la lógica de aceptación V3 en:
+La siguiente tarea histórica, ya completada, era rediseñar la lógica de aceptación V3 en:
 
 scripts\run_top50_tavily_due_diligence.py
 
@@ -670,3 +670,102 @@ Simula la lógica V3 sobre las 55 evidencias existentes y demuestra:
 
 Solo después de esa validación se podrá considerar un nuevo piloto.
 ```
+
+## 25. Auditoria final offline y Attribution-First Domain Family Method V4
+
+### Auditoria final offline aceptada
+
+La auditoria humana de los 80 resultados finales concluyo:
+
+- dictamen: `FINAL_OFFLINE_AUDIT_REQUIRES_METHOD_REDESIGN`;
+- 64 resultados discovery, 16 controles y 41 resultados discovery unicos auditables;
+- 23 duplicados discovery;
+- 14 candidatos automaticos, de los cuales solo uno era plausible antes de aplicar compuertas V4;
+- 186 relaciones auditadas y cero relaciones fuertes o de apoyo atribuibles para identidad;
+- `vocotv.ai` no fue recuperado espontaneamente;
+- no se demostro propiedad comun ni existe un dominio oficial confirmado;
+- lote 2 permanece bloqueado.
+
+### Objetivo y resultado de V4
+
+Se creo el evaluador independiente:
+
+- `scripts\evaluate_domain_family_attribution_v4.py`
+- pruebas: `tests\test_evaluate_domain_family_attribution_v4.py`
+- replay local: `research\output\best_iptv_2026\domain_family_discovery_voco_micro_pilot\method_redesign_v4_replay_run_20260715_023727\`
+
+V4 separa aparicion, actividad comercial, reseller, affiliate, reviews, infraestructura y controles de la identidad atribuible. Usa compuertas explicitas, deduplicacion e `independence_group`; no utiliza una suma opaca de puntos.
+
+Dictamen aceptado: `ATTRIBUTION_METHOD_V4_OFFLINE_PASS`.
+
+Este PASS valida la reproducibilidad, trazabilidad y capacidad de abstencion del metodo. No identifica un operador oficial.
+
+### Metricas V4
+
+- resultados discovery brutos: 64;
+- resultados discovery unicos: 41;
+- duplicados: 23/64 = 0.359375;
+- precision relevante auditable: 18/41 = 0.43902439024390244;
+- grupos independientes de evidencia atribuible: 20;
+- relaciones atribuibles de identidad: 0/186;
+- relaciones de infraestructura: 77;
+- relaciones reseller: 2;
+- relaciones genericas: 54;
+- referencias externas/reviews: 22;
+- ruido: 31;
+- dominios no resueltos: 16/131;
+- candidatos nuevos plausibles despues de compuertas: 0;
+- operadores probables: 0;
+- dominios relacionados probables: 0;
+- dominios reseller: 9;
+- leakage de identidad desde clases excluidas y controles: 0.
+
+### Clasificaciones principales V4
+
+- `vocotviptv.com`: `RESELLER`, confianza media. Tiene tres grupos de apoyo, actividad comercial y conflicto reseller, pero ninguna senal fuerte ni diversidad suficiente.
+- `vocotvusa.net`: `RESELLER`, confianza media. Tiene actividad comercial y senales reseller, pero cero grupos fuertes o de apoyo que superen las compuertas.
+- `vocotv.ai`: `UNRESOLVED`, confianza baja y `CONTROL_INDUCED`; cero recuperacion espontanea.
+- `vocoiptv.com`: `UNRESOLVED`; actividad comercial sin atribucion de propiedad u operacion.
+
+### Trazabilidad de los 20 grupos y compuertas fallidas
+
+El replay conserva 2 grupos `IDENTITY_STRONG` y 18 `IDENTITY_SUPPORTING`. Una senal localmente atribuible no basta para resolver identidad. Cada uno de los 20 grupos fue reevaluado contra:
+
+- presencia de al menos una senal fuerte por dominio;
+- dos categorias atribuibles diferentes;
+- dos grupos independientes;
+- convergencia entre senales fuertes y de apoyo;
+- ausencia de conflictos reseller, review u homonimo;
+- relacion interdominio atribuible para `POSSIBLE_RELATED_DOMAIN`.
+
+Los 20 grupos terminaron `FAIL_ABSTAIN`. Ningun dominio reunio simultaneamente una senal fuerte, dos categorias, independencia, convergencia y ausencia de conflicto. Ademas, ninguna de las 186 relaciones fue `IDENTITY_STRONG` o `IDENTITY_SUPPORTING`, por lo que ningun dominio supero la compuerta `POSSIBLE_RELATED_DOMAIN`.
+
+Artefactos locales de trazabilidad:
+
+- `identity_evidence_gate_trace_v4.csv`
+- `identity_evidence_gate_trace_v4.md`
+- `domain_identity_gap_matrix_v4.csv`
+- `domain_identity_gap_matrix_v4.md`
+- `targeted_external_verification_protocol_v1.md`
+
+### Validacion e integridad
+
+- `py_compile`: PASS sin residuos;
+- `unittest`: 18/18 PASS;
+- `pytest`: `NOT_AVAILABLE`; no se instalo por la restriccion offline;
+- run original antes/despues: `286501151DB0DCFAA6383C0AB718B1F26250E7FA91D231C962EAB0B8B67A857C`;
+- auditoria final antes/despues: `E67364695B94A18278823963F46C37A05661D551E78E4CF38B3DFB47EE394F8E`;
+- Tavily, red de investigacion, credenciales y creditos: 0;
+- ningun dominio oficial confirmado;
+- lote 2 bloqueado.
+
+### Caveats metodologicos
+
+- La ausencia de evidencia no es evidencia negativa.
+- `IDENTITY_STRONG` o `IDENTITY_SUPPORTING` describe una unidad aceptable para evaluar, no una conclusion suficiente por si sola.
+- Repeticion, actividad comercial, palabra `official`, infraestructura, hosting, Cloudflare, procesadores de pago, reviews, controles o coincidencias tecnicas aisladas no demuestran propiedad.
+- El protocolo externo V1 es solo diseno y no autoriza accesos ni consultas.
+
+### Proxima tarea unica vigente
+
+REVISAR Y, SOLO CON AUTORIZACION EXPRESA, EJECUTAR UNA VERIFICACION EXTERNA DIRIGIDA Y LIMITADA SOBRE LOS DOMINIOS SEMILLA PRIORIZADOS, UTILIZANDO EL PROTOCOLO V1 Y LAS COMPUERTAS V4.
