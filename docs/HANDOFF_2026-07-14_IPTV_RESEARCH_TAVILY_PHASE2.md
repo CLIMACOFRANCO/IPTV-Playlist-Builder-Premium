@@ -769,3 +769,108 @@ Artefactos locales de trazabilidad:
 ### Proxima tarea unica vigente
 
 REVISAR Y, SOLO CON AUTORIZACION EXPRESA, EJECUTAR UNA VERIFICACION EXTERNA DIRIGIDA Y LIMITADA SOBRE LOS DOMINIOS SEMILLA PRIORIZADOS, UTILIZANDO EL PROTOCOLO V1 Y LAS COMPUERTAS V4.
+
+## 26. Cierre forense definitivo TEV1 de la familia Voco (2026-07-16)
+
+### Dictamen y alcance
+
+Dictamen definitivo: `VOCO_DOMAIN_FAMILY_UNRESOLVED_AFTER_TARGETED_VERIFICATION`.
+
+La evidencia confirma una superficie comercial VocoTV operativa en `vocotviptv.com`, pero no identifica de forma atribuible una entidad juridica, propietario, operador juridico, data controller, merchant, billing entity ni jurisdiccion. El dictamen no niega que el sitio opere; registra que no puede atribuirse juridicamente su operacion a una entidad determinada.
+
+No se emitio `OFFICIAL_DOMAIN`, `CONFIRMED_OFFICIAL_DOMAIN` ni `VERIFIED_OWNER`.
+
+### Cronologia completa
+
+1. Adquisicion inicial: 12 consultas Tavily completadas produjeron 59 resultados internos; tres capturas HTTP originales quedaron preservadas. El consumo reconstruido fue 30 unidades.
+2. Recuperacion forense offline: se reconstruyeron 62 filas normalizadas sin red, sin credenciales y sin modificar el run real.
+3. Repair HTTP derivado: cuatro accesos logicos y ocho requests fisicos elevaron el consumo acumulado a 38/40. Se obtuvo una captura raiz HTTP 200; tres cadenas quedaron incompletas porque el limite impidio solicitar el tercer salto calculado.
+4. Evaluacion combinada offline: integro 59 resultados Tavily, tres capturas originales y una captura raiz. Produjo 63 filas y priorizo solo Terms y Privacy para las dos unidades restantes.
+5. Dos accesos finales: se solicitaron exactamente `https://www.vocotviptv.com/terms/` y `https://www.vocotviptv.com/privacy-policy/`; ambos devolvieron HTTP 200, sin redirects. Row IDs: `final_http_80ec9ac102d47aaa3171b849` y `final_http_1fa871718eaa215ec5a38519`.
+6. Cierre final offline: integro las dos capturas sin red adicional y reevaluo las compuertas V4 sobre los cuatro dominios.
+
+Presupuesto definitivo: 40/40; restante: 0. Se prohibe repetir las 12 consultas Tavily, repetir los dos accesos finales o seguir consumiendo red para la familia Voco.
+
+### Evidencia final de Terms
+
+- Titulo: `Terms & Conditions – VocoTV`; actualizacion declarada: 14 de septiembre de 2025.
+- Presenta `VocoTV` como marca/etiqueta contractual y como proveedor del servicio, pero no nombra razon social, operador juridico, propietario, merchant, seller, registro empresarial, identificador tributario, domicilio ni billing entity.
+- Contacto observado: WhatsApp `+212714633888`; el correo visible permanece como placeholder ofuscado.
+- Billing: cobro anticipado y autorrenovacion con metodo no especificado. Reembolso delegado a `/refund-policy/`; procesador no nombrado.
+- La clausula de ley aplicable conserva `{Your Business Country}`. Por tanto no existe jurisdiccion atribuible.
+- El footer afirma `VocoTV © 2025`, señal de marca sin valor de identidad juridica fuerte.
+- Conflictos/plantilla: metadatos usan `VocoTV.com` mientras el canonical usa `vocotviptv.com`; el HTML declara haber sido copiado de `tvplansiptvstore.com/terms.html`.
+- Hash de contenido: `914519a584b3abfba16c23ba362ce011a5478c513676749f2184dc3c614de990`.
+
+### Evidencia final de Privacy
+
+- Titulo: `Privacy Policy – VocoTV`; actualizacion declarada: 14 de septiembre de 2025.
+- No nombra data controller, data processor, entidad juridica, propietario, operador, DPO, persona de contacto, domicilio, pais ni jurisdiccion.
+- Los pronombres `we` y `our`, y la marca VocoTV, no se trataron como entidad juridica.
+- Bases declaradas: consentimiento, intereses legitimos y ejecucion contractual. Retencion generica ligada a fines declarados y obligaciones legales/fiscales/contables.
+- Derechos declarados: acceso, rectificacion, supresion y opt-out. Contacto por WhatsApp `+212714633888`.
+- Menciona un payment processor sin nombrarlo y Google Analytics como ejemplo de proveedor analitico. No identifica hosting provider ni billing entity.
+- No contiene referencias explicitas a GDPR, CCPA o UK GDPR ni una clausula identificable de transferencias internacionales.
+- Conflicto/plantilla: el HTML declara haber sido copiado de `tvplansiptvstore.com/privacy-policy.html`.
+- Hash de contenido: `fb3e305648cad95d606488c6569967e4e6d987b1ec080935ac355e6dac99947c`.
+
+### Integracion, relaciones y compuertas V4
+
+La integracion final contiene 65 filas normalizadas, 43 URLs exactas observadas, 37 URLs canonicas y 45 grupos de independencia. El recuento directo del CSV combinado previo es 41 URLs exactas, aunque su metrica historica declaraba 40; al añadir las dos URLs finales con slash, el recuento fisico final es 43. Esta correccion de metrica no altera ninguna fuente.
+
+Señales: 0 `IDENTITY_STRONG` y 1 `IDENTITY_SUPPORTING` heredada del contacto/raiz. Terms aporta `BRAND_SELF_ASSERTION` y `LEGAL_TEMPLATE_ONLY`; Privacy aporta `BRAND_SELF_ASSERTION` y `PRIVACY_TEMPLATE_ONLY`; WhatsApp es `CONTACT_ONLY`. Los placeholders, pronombres, copyright, structured data, analytics y dominio no fueron elevados a identidad fuerte.
+
+Relacion VibeFlixTV observada: la captura raiz preserva enlaces de pricing/checkout a `wp.vibeflixtv.com`. Terms y Privacy no mencionan VibeFlixTV. El enlace demuestra una relacion de checkout, no propiedad comun, merchant identity, billing entity ni control compartido.
+
+Resultado por dominio:
+
+- `vocotviptv.com`: `UNRESOLVED`; existe superficie operativa de marca y evidencia first-party, pero no entidad nombrada, convergencia ni ausencia de conflictos materiales.
+- `vocotvusa.net`: `UNRESOLVED`; sin nueva captura final y sin identidad atribuible suficiente.
+- `vocotv.ai`: `UNRESOLVED`; sin nueva captura final y sin identidad atribuible suficiente.
+- `vocoiptv.com`: `UNRESOLVED`; sin nueva captura final y sin identidad atribuible suficiente.
+
+Compuertas: entidad nombrada FAIL; dos categorias independientes FAIL; convergencia FAIL; relacion atribuible dominio-entidad FAIL. Para `vocotviptv.com`, ausencia de conflictos materiales tambien FAIL por placeholder de jurisdiccion y procedencia de plantilla. En los otros tres dominios no se observo conflicto nuevo, pero las restantes compuertas fallan por insuficiencia.
+
+### Integridad, outputs y runner
+
+Fuentes inmutables, hashes recursivos antes y despues:
+
+- run real: `394358D228C00EA7B52827D27EDF9741149020ECA3FDEC4270538C7C23861579`;
+- recuperacion offline: `0040B91903F31537826CCB3D80959D2E9AD2E3F7491FFD96A05061007CA24B25`;
+- repair HTTP: `DB656E2F983F8F583BF2909850AE146DA1C892067BB2699D4CF3A2ED4985BED6`;
+- evaluacion combinada: `2861542AAD41DA3B99B7B69E1D6E969ECF5243DA7C71206ADAF24EDAD50ED8F6`;
+- dos capturas finales: `3483C2D30999A25F9C0ED0EBE724007EA9E70F198610FCCC840FDF19E3FDA935`.
+
+Todos permanecieron identicos. Output derivado final:
+
+`research/output/best_iptv_2026/domain_family_discovery_voco_micro_pilot/targeted_external_verification_v1_final_offline_closure_20260716_002456/`
+
+El directorio contiene los 21 artefactos forenses, CSV de señales/relaciones/compuertas, cuatro dossiers, reporte de cierre, protocolo reutilizable, metricas, manifiesto de integridad y validacion del runner.
+
+Archivos versionables actuales:
+
+- `scripts/run_targeted_external_verification_v1.py`;
+- `tests/test_run_targeted_external_verification_v1.py`;
+- `docs/HANDOFF_2026-07-14_IPTV_RESEARCH_TAVILY_PHASE2.md`.
+
+El runner ahora detecta localmente cualquier run hermano final completado a 40/40 antes de crear output o inicializar red. Esto bloquea la repeticion de los dos accesos finales. Se mantienen la omision de consultas Tavily ya completadas, contadores de requests fisicos separados de eventos de redirect, `supporting_row_ids` obligatorios y la prohibicion de clasificaciones oficiales.
+
+Validacion offline: `py_compile` PASS; unittest focalizado 44/44 PASS; JSON 4/4, JSONL 8/8, CSV 10/10 y Markdown 7/7 PASS; 166 filas CSV con `supporting_row_ids` validas; escaneo de patrones de valores secretos con cero hallazgos. No se leyo `TAVILY_API_KEY`, no se hicieron llamadas Tavily, HTTP, DNS ni sockets, y no se modifico el PID protegido.
+
+### Riesgos y metodo reutilizable
+
+Riesgos cerrados: recuperacion de evidencia, dos capturas finales, contabilidad 40/40, repeticion accidental del acceso final, trazabilidad por row ID y abstencion V4.
+
+Riesgos que permanecen: identidad juridica, controller, jurisdiccion, merchant/billing entity y naturaleza de la relacion VibeFlixTV siguen sin resolver. No deben abordarse con mas red en Voco bajo este presupuesto agotado.
+
+Metodo para la siguiente familia: seleccionar desde corpus offline, congelar hashes, deduplicar sin perder procedencia, separar marca/contacto/plantilla/pago/infraestructura de identidad, exigir entidad nombrada + dos categorias independientes + convergencia + ausencia de conflicto + relacion dominio-entidad, y abstenerse si falla cualquier compuerta. Todo nuevo micro-piloto requiere presupuesto propio y autorizacion expresa.
+
+### Proxima tarea unica: decision controlada, no autorizada
+
+Elegir expresamente una sola alternativa; ninguna queda seleccionada ni autorizada por este handoff:
+
+A. Seleccionar otra familia ya presente en el corpus offline.
+B. Aplicar primero V4 offline a candidatos existentes.
+C. Preparar un micro-piloto nuevo, limitado y separado, sujeto a autorizacion previa.
+
+No abrir lote 2 ni ejecutar red como siguiente paso automatico.
