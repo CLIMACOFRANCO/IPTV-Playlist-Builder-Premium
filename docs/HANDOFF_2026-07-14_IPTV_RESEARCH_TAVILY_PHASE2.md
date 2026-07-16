@@ -391,6 +391,8 @@ Caveat de serializacion: el campo superior `repair_attempts` del manifest perman
 
 ### Proxima tarea unica historica (completada por la auditoria final offline)
 
+Estado histórico superado por la Sección 27 — Reorientación estratégica oficial BRAND-FIRST.
+
 Auditar offline los 80 registros finales combinados y recalcular:
 
 - candidatos realmente relevantes;
@@ -498,6 +500,8 @@ Archivos generados:
 - `research\output\best_iptv_2026\tavily_due_diligence_v2\pilot_v2_filter_adjustments_20260714.json`
 
 ## Próxima tarea única
+
+Estado histórico superado por la Sección 27 — Reorientación estratégica oficial BRAND-FIRST.
 
 Modificar unicamente:
 
@@ -768,6 +772,8 @@ Artefactos locales de trazabilidad:
 
 ### Proxima tarea unica vigente
 
+Estado histórico superado por la Sección 27 — Reorientación estratégica oficial BRAND-FIRST.
+
 REVISAR Y, SOLO CON AUTORIZACION EXPRESA, EJECUTAR UNA VERIFICACION EXTERNA DIRIGIDA Y LIMITADA SOBRE LOS DOMINIOS SEMILLA PRIORIZADOS, UTILIZANDO EL PROTOCOLO V1 Y LAS COMPUERTAS V4.
 
 ## 26. Cierre forense definitivo TEV1 de la familia Voco (2026-07-16)
@@ -867,6 +873,8 @@ Metodo para la siguiente familia: seleccionar desde corpus offline, congelar has
 
 ### Proxima tarea unica: decision controlada, no autorizada
 
+Estado histórico superado por la Sección 27 — Reorientación estratégica oficial BRAND-FIRST.
+
 Elegir expresamente una sola alternativa; ninguna queda seleccionada ni autorizada por este handoff:
 
 A. Seleccionar otra familia ya presente en el corpus offline.
@@ -874,3 +882,472 @@ B. Aplicar primero V4 offline a candidatos existentes.
 C. Preparar un micro-piloto nuevo, limitado y separado, sujeto a autorizacion previa.
 
 No abrir lote 2 ni ejecutar red como siguiente paso automatico.
+
+## 27. Reorientación estratégica oficial BRAND-FIRST (2026-07-16)
+
+Esta sección es la decisión estratégica autoritativa vigente. Prevalece sobre cualquier sección histórica denominada "Próxima tarea", "Próxima tarea única" o equivalente que aparezca anteriormente en este handoff. Las decisiones históricas se preservan como trazabilidad, pero las que se indican como suspendidas o reemplazadas no deben ejecutarse.
+
+### 27.1 Decisión estratégica aprobada
+
+El proyecto adopta oficialmente un enfoque **BRAND-FIRST**.
+
+La marca comercial será la unidad primaria de descubrimiento, análisis de mercado y selección de semillas. Los dominios no originarán por sí solos familias empresariales: serán activos candidatos observados alrededor de una marca y deberán clasificarse posteriormente como operador, dominio relacionado, revendedor, afiliado, clon, aplicación, panel, checkout, infraestructura, ruido o no resuelto.
+
+La entidad jurídica será una conclusión de atribución y no una premisa.
+
+Orden conceptual vigente:
+
+`FUENTE DE MERCADO → BRAND_MENTION → CANONICAL_BRAND → BRAND_SEED → PROVISIONAL_DOMAIN_CLUSTER → V4 ATTRIBUTION → ATTRIBUTED_BRAND_ECOSYSTEM → LEGAL_OPERATOR`, solo si existe evidencia suficiente.
+
+Principios operativos:
+
+- La marca organiza la investigación.
+- La evidencia decide la atribución.
+- El dominio es un activo candidato.
+- La entidad jurídica es una conclusión posterior.
+
+### 27.2 Corrección conceptual del hito anterior
+
+El hito `V4_OFFLINE_CANDIDATE_PRIORITIZATION_COMPLETE` fue técnicamente reproducible y permanece versionado, pero su interpretación correcta es limitada.
+
+No fue:
+
+- una comparación entre 50 marcas;
+- una priorización global del mercado IPTV;
+- una selección entre 50 proveedores;
+- una identificación de diez familias empresariales;
+- una confirmación de diez operadores.
+
+Fue:
+
+- una priorización exploratoria de diez clústeres nominales de dominios;
+- derivada principalmente de tres marcas raíz: DigitaLizard IPTV, Krooz TV y Sonix IPTV;
+- construida mediante patrones nominales y evidencias del corpus local;
+- sin identidad empresarial atribuida;
+- sin dominio oficial confirmado;
+- sin operador legal identificado.
+
+El archivo `research/output/best_iptv_2026/tavily_due_diligence_v2/pilot_v2_accepted_audit_20260714.csv` contiene 50 filas de evidencia, pero únicamente cuatro valores `brand_name`:
+
+- Krooz TV: 20 filas;
+- Sonix IPTV: 12 filas;
+- Voco TV: 9 filas;
+- DigitaLizard IPTV: 9 filas.
+
+La quinta marca del piloto fue Free Go TV, pero produjo cero evidencias aceptadas y por ello no aparece en ese CSV. Después de excluir Voco por su cierre definitivo, el análisis anterior quedó reducido a tres marcas raíz.
+
+Las diez unidades del ranking anterior deben denominarse `PROVISIONAL_NOMINAL_DOMAIN_CLUSTERS` o, en español, **clústeres nominales provisionales de dominios**. No deben denominarse familias confirmadas.
+
+### 27.3 Valor que se conserva del trabajo anterior
+
+No se revierte ni se descarta:
+
+- el corpus inicial;
+- la limpieza de marcas;
+- el Top 50 histórico;
+- V1, V2 y V3;
+- el método V4;
+- el cierre forense Voco;
+- los runners;
+- las pruebas;
+- los checkpoints;
+- los `supporting_row_ids`;
+- los inventarios de dominios;
+- el plan de adopción de Tavily Agent Skills;
+- el script de priorización de clústeres.
+
+V4 se conserva como la capa downstream de atribución. La reorientación no invalida V4; corrige el momento en que debe aplicarse:
+
+1. primero se descubre y prioriza la marca;
+2. después se investiga su ecosistema de dominios;
+3. finalmente se aplica V4.
+
+### 27.4 Genealogía histórica que debe reconstruirse
+
+Cadena histórica conocida:
+
+- 42 consultas generales;
+- 535 fuentes únicas;
+- 1.035 nombres detectados;
+- 757 registros depurados;
+- 128 falsos positivos eliminados;
+- 150 aliases fusionados;
+- 692 registros clasificados como `PROVIDER`;
+- Top 50 histórico;
+- lote 1 de 10 marcas;
+- piloto V2 de 5 marcas;
+- 4 marcas con evidencias aceptadas;
+- 3 marcas raíz después del cierre de Voco;
+- 10 clústeres nominales provisionales.
+
+Esta reducción debe auditarse para identificar:
+
+- reglas de limpieza;
+- aliases;
+- exclusiones;
+- calidad de fuentes;
+- independencia de fuentes;
+- duplicación SEO;
+- sesgos geográficos;
+- sesgos lingüísticos;
+- sesgos por recurrencia;
+- razones de ingreso o exclusión del Top 50.
+
+### 27.5 Nueva taxonomía oficial
+
+**BRAND_MENTION**: aparición literal de un nombre comercial en una fuente.
+
+**CANONICAL_BRAND**: nombre normalizado de marca después de revisar ortografía, aliases y posibles homónimos.
+
+**BRAND_SEED**: marca canónica seleccionada para investigación profunda.
+
+**PROVISIONAL_DOMAIN_CLUSTER**: conjunto de dominios nominal o técnicamente relacionados con una marca, sin atribución demostrada.
+
+**ATTRIBUTED_BRAND_ECOSYSTEM**: conjunto de dominios, aplicaciones, contactos, pagos y entidades cuya relación fue demostrada mediante evidencia suficiente.
+
+**LEGAL_OPERATOR**: entidad jurídica atribuida a la operación solo cuando supera las compuertas metodológicas.
+
+Estados de alias:
+
+- `ALIAS_CONFIRMED`;
+- `ALIAS_PROBABLE`;
+- `ALIAS_NOMINAL_ONLY`;
+- `POSSIBLE_IMPERSONATION`.
+
+### 27.6 Separación de los dos sistemas metodológicos
+
+**SISTEMA 1 — BRAND MARKET INTELLIGENCE**
+
+Responde:
+
+- qué marcas existen;
+- en qué fuentes aparecen;
+- con qué recurrencia;
+- en cuántos grupos independientes;
+- con qué vigencia;
+- con qué cobertura geográfica y lingüística;
+- cuáles merecen investigación profunda.
+
+**SISTEMA 2 — BRAND ATTRIBUTION AND RESOLUTION**
+
+Responde:
+
+- qué dominios están relacionados;
+- cuál puede ser operador;
+- cuáles son revendedores;
+- cuáles son clones o afiliados;
+- qué aplicación, publisher o checkout aparece;
+- qué entidad jurídica puede atribuirse;
+- si debe emitirse `UNRESOLVED`.
+
+V4 pertenece al Sistema 2. La próxima fase debe completar primero el Sistema 1.
+
+### 27.7 Fuentes “Best IPTV 2026” y su uso correcto
+
+Las páginas del tipo `Best IPTV Services 2026`, `Best IPTV Providers 2026`, `Top IPTV Subscriptions 2026` o `IPTV Services Review 2026` pueden utilizarse para descubrir marcas, pero no deben tratarse automáticamente como fuentes expertas, independientes o probatorias.
+
+Debe separarse expresamente:
+
+`valor para descubrir marcas ≠ valor para evaluar calidad ≠ valor para demostrar identidad ≠ valor para demostrar legalidad`.
+
+Taxonomía futura de fuentes:
+
+- Nivel A: publicación especializada con autoría y metodología;
+- Nivel B: comunidad técnica, medio reconocido o foro con contexto;
+- Nivel C: comparador o ranking con afiliación declarada;
+- Nivel D: reseller, proveedor o contenido promocional;
+- Nivel E: contenido copiado, spam o ruido.
+
+Las fuentes C y D pueden generar candidatos, pero no elevar por sí solas reputación, oficialidad ni identidad.
+
+### 27.8 Independencia de fuentes
+
+Múltiples páginas no equivalen necesariamente a múltiples fuentes independientes. Las futuras auditorías deben detectar:
+
+- textos idénticos;
+- mismo orden de marcas;
+- mismas tablas;
+- mismos errores;
+- mismo autor;
+- misma empresa;
+- misma red de dominios;
+- mismo código de afiliado;
+- mismo contacto;
+- mismo template;
+- republicaciones.
+
+Una red de páginas relacionadas debe contarse como un solo `independence_group` cuando corresponda.
+
+### 27.9 Reorientación de Tavily
+
+Tavily se utilizará en dos etapas diferentes.
+
+**ETAPA DE UNIVERSO DE MARCAS**
+
+- Search para localizar fuentes y rankings;
+- Map para descubrir secciones relevantes de sitios fuente;
+- Extract para recuperar listas, tablas, metodología y marcas;
+- Crawl bloqueado por defecto;
+- Research bloqueado por defecto.
+
+**ETAPA DE INVESTIGACIÓN DE UNA MARCA**
+
+- Map del dominio candidato;
+- revisión humana offline;
+- Extract de páginas seleccionadas;
+- Search únicamente para vacíos;
+- V4 offline;
+- decisión humana.
+
+Tavily Agent Skills será una capa de adquisición y no una capa de atribución. V4 seguirá siendo la capa de atribución.
+
+### 27.10 Créditos Tavily disponibles
+
+Datos operativos registrados:
+
+- plan mensual observado: 4.000 créditos;
+- contador confirmado después de la prueba básica: 548/4000;
+- la API funciona;
+- la prueba consumió exactamente un crédito.
+
+La disponibilidad de créditos no constituye autorización automática de consumo. Los créditos deben utilizarse con:
+
+- presupuesto previo;
+- human approval;
+- ledger;
+- deduplicación de consultas;
+- hashes;
+- checkpoints;
+- raw evidence preservation;
+- stop conditions;
+- medición de valor informativo por crédito.
+
+No se deben consumir créditos solamente porque están disponibles.
+
+### 27.11 Decisiones suspendidas
+
+Se suspende `V4-OFFLINE-FAMILY-CONSOLIDATION-1B`.
+
+No se debe continuar consolidando Digitalizard o Krooz como siguiente tarea automática.
+
+No se autoriza todavía:
+
+- piloto Digitalizard;
+- piloto Krooz;
+- piloto Sonix;
+- lote 2;
+- instalación de Tavily Agent Skills;
+- Tavily Crawl;
+- Tavily Research;
+- nuevas consultas;
+- selección definitiva de una marca.
+
+### 27.12 Nuevo roadmap aprobado
+
+**BRAND-FIRST-MARKET-UNIVERSE-1A**: reconstrucción y auditoría completamente offline del universo histórico de marcas.
+
+**BRAND-FIRST-MARKET-UNIVERSE-1B**: ampliación controlada del universo mediante Tavily, basada en fuentes, rankings, múltiples regiones e idiomas.
+
+**BRAND-SEED-PRIORITIZATION-1C**: priorización de marcas canónicas para investigación profunda.
+
+**BRAND-ATTRIBUTION-PILOT-1D**: investigación individual de una marca semilla mediante:
+
+`Map → revisión humana → Extract → Search de vacíos → V4 → operador, reseller, clon o UNRESOLVED`.
+
+### 27.13 Próxima tarea única vigente
+
+La próxima tarea única es `BRAND-FIRST-MARKET-UNIVERSE-1A`.
+
+Objetivo: reconstruir completamente offline el universo histórico ya existente y hacer visible:
+
+- los 1.035 nombres originales;
+- los 757 registros depurados;
+- los 692 `PROVIDER`;
+- el Top 50 histórico;
+- aliases;
+- fuentes;
+- recurrencia;
+- independencia;
+- exclusiones;
+- criterios de selección;
+- sesgos;
+- trazabilidad.
+
+No seleccionar todavía una marca para investigación externa.
+
+### 27.14 Fuentes locales mínimas para 1A
+
+- `research/output/best_iptv_2026/tavily_corpus_20260713_222351.json`
+- `research/output/best_iptv_2026/tavily_corpus_20260713_222351.csv`
+- `research/output/best_iptv_2026/brands_consolidated_20260713_222351.csv`
+- `research/output/best_iptv_2026/brands_cleaned_20260713.csv`
+- `research/output/best_iptv_2026/brands_rejected_20260713.csv`
+- `research/output/best_iptv_2026/cleaning_report_20260713.md`
+- `research/output/best_iptv_2026/top50_due_diligence_preliminary_20260713.csv`
+- `research/output/best_iptv_2026/top50_due_diligence_preliminary_20260713.xlsx`
+- `research/output/best_iptv_2026/top50_due_diligence_report_20260713.md`
+- `research/output/best_iptv_2026/top50_query_plan_20260713.json`
+
+### 27.15 Entregables previstos para 1A
+
+Los siguientes son entregables planificados, no artefactos ya creados:
+
+1. `01_source_inventory.csv`
+2. `02_raw_brand_mentions.csv`
+3. `03_canonical_brand_universe.csv`
+4. `04_brand_alias_map.csv`
+5. `05_brand_exclusions.csv`
+6. `06_provider_universe_692.csv`
+7. `07_historical_top50.csv`
+8. `08_top50_selection_trace.csv`
+9. `09_source_quality_registry.csv`
+10. `10_source_independence_groups.csv`
+11. `11_brand_source_matrix.csv`
+12. `12_brand_recurrence_metrics.csv`
+13. `13_brand_seed_readiness.csv`
+14. `14_top50_recalibrated_offline.csv`
+15. `15_historical_vs_recalibrated_comparison.csv`
+16. `16_market_universe_bias_report.md`
+17. `17_brand_first_market_universe_report.md`
+18. `18_integrity_manifest.json`
+19. `19_runner_validation_report.md`
+
+Artefactos versionables previstos:
+
+- `scripts/build_brand_first_market_universe.py`
+- `tests/test_build_brand_first_market_universe.py`
+- `docs/BRAND_FIRST_RESEARCH_METHOD.md`
+
+Estos archivos todavía no existen por decisión de este handoff.
+
+### 27.16 Restricciones de BRAND-FIRST-MARKET-UNIVERSE-1A
+
+- cero Tavily;
+- cero HTTP;
+- cero DNS;
+- cero sockets;
+- cero credenciales;
+- cero instalaciones;
+- cero fuentes nuevas;
+- no modificar runs históricos;
+- no abrir lote 2;
+- no investigar individualmente Digitalizard, Krooz o Sonix;
+- no declarar dominios oficiales;
+- no hacer commit ni push antes de revisión humana;
+- preservar hashes antes y después;
+- mantener `supporting_row_ids`;
+- no modificar PID 28448.
+
+### 27.17 Criterios de aceptación de 1A
+
+Un PASS exige:
+
+- inventariar todo el universo disponible;
+- mostrar exactamente los 692 `PROVIDER`;
+- listar exactamente el Top 50 histórico;
+- rastrear cada marca a sus fuentes;
+- diferenciar fuentes independientes y duplicadas;
+- explicar aliases y exclusiones;
+- reconstruir `1.035 → 757 → 692 → 50`;
+- identificar sesgos;
+- producir un ranking recalibrado offline;
+- no seleccionar aún la próxima marca externa;
+- preservar todos los artefactos fuente.
+
+Dictámenes permitidos:
+
+- `BRAND_FIRST_MARKET_UNIVERSE_OFFLINE_COMPLETE`
+- `BRAND_FIRST_MARKET_UNIVERSE_REQUIRES_FIXES`
+- `BRAND_FIRST_MARKET_UNIVERSE_INSUFFICIENT_TRACEABILITY`
+- `BRAND_FIRST_MARKET_UNIVERSE_BLOCKED_BY_INTEGRITY`
+
+## 28. Estado operativo vigente para el próximo hilo
+
+- rama esperada: `main`;
+- HEAD y `origin/main` esperados antes de esta actualización: `adf7c4c01aa0f105e998c49e9fa2523d06075060`;
+- cierre Voco publicado: `1e59b4ea9372349d63d6b615a08172cac68bdfed`;
+- priorización de clústeres publicada: `adf7c4c01aa0f105e998c49e9fa2523d06075060`;
+- lote 2 bloqueado;
+- Voco cerrado y sin presupuesto restante;
+- Agent Skills no instaladas;
+- próximo hito: `BRAND-FIRST-MARKET-UNIVERSE-1A`.
+
+Después de modificar este handoff, el working tree debe quedar con un único archivo modificado y sin commit, salvo autorización posterior.
+
+## 29. Prompt vigente para iniciar el nuevo hilo
+
+```text
+Continuamos el proyecto IPTV Playlist Builder Premium.
+
+Directorio:
+
+C:\Proyectos\IPTV-Playlist-Builder-Premium
+
+Lee primero y toma como fuente autoritativa:
+
+docs\HANDOFF_2026-07-14_IPTV_RESEARCH_TAVILY_PHASE2.md
+
+Decisión estratégica vigente:
+
+El proyecto adopta oficialmente un enfoque BRAND-FIRST.
+
+La marca es la unidad primaria de descubrimiento y la semilla de
+investigación.
+
+Los dominios son activos candidatos alrededor de una marca y no
+constituyen por sí solos familias empresariales.
+
+La entidad jurídica solo puede ser una conclusión posterior de
+atribución.
+
+El hito anterior V4_OFFLINE_CANDIDATE_PRIORITIZATION_COMPLETE se conserva,
+pero debe interpretarse únicamente como priorización exploratoria de diez
+clústeres nominales de dominios derivados principalmente de Digitalizard,
+Krooz y Sonix.
+
+No fue una comparación entre 50 marcas ni diez familias empresariales.
+
+Se suspende:
+
+V4-OFFLINE-FAMILY-CONSOLIDATION-1B
+
+Nuevo hito:
+
+BRAND-FIRST-MARKET-UNIVERSE-1A
+
+Objetivo:
+
+Reconstruir completamente offline el universo histórico de marcas:
+
+- 1.035 nombres originales;
+- 757 registros depurados;
+- 692 PROVIDER;
+- Top 50 histórico;
+- aliases;
+- fuentes;
+- recurrencia;
+- grupos independientes;
+- exclusiones;
+- selección;
+- sesgos;
+- trazabilidad.
+
+Debemos ver y auditar todas las marcas, no solamente las cinco del piloto.
+
+Restricciones:
+
+- cero Tavily;
+- cero HTTP, DNS o sockets;
+- cero lectura de credenciales;
+- no instalar Agent Skills;
+- no abrir lote 2;
+- no modificar artefactos históricos;
+- no declarar dominios oficiales;
+- no hacer commit ni push sin revisión humana.
+
+Primera tarea:
+
+Diseñar y ejecutar una auditoría offline reproducible del universo completo
+de marcas y producir un ranking histórico y otro recalibrado, sin
+seleccionar todavía la próxima marca para investigación externa.
+```
