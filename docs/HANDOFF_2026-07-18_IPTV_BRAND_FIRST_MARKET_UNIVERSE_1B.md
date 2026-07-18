@@ -1463,7 +1463,7 @@ la clave a Codex.
 4. Codex no necesita recibir `TAVILY_API_KEY`.
 5. No se resuelve el flujo entregando la clave a Codex.
 6. No se crea ni modifica por defecto
-   `C:\Users\Franco Traders\.codex\.env`.
+   `$env:USERPROFILE\.codex\.env`.
 7. PowerShell ejecuta en una sesion donde `tvly --status` confirme
    autenticacion, con el comando exacto, presupuesto, limite de llamadas, stop
    conditions y persistencia de JSON/logs.
@@ -1652,7 +1652,7 @@ PowerShell -> PowerShell ejecuta Tavily -> Codex y ChatGPT auditan offline.
 Codex no ejecuta Tavily real, no necesita TAVILY_API_KEY y no debe recibirla.
 No crear ni modificar:
 
-C:\Users\Franco Traders\.codex\.env
+$env:USERPROFILE\.codex\.env
 
 PowerShell debe reconfirmar `tvly --status` en la sesion que ejecutara el
 comando. Los artefactos locales verifican Python 3.12.10 y tavily-cli 0.1.4,
@@ -1716,3 +1716,1580 @@ estado Max/Ultra.
 Objetivo inmediato: ejecutar el smoke test real desde PowerShell y dictaminar
 SIRVIO, SIRVIO PARCIALMENTE o NO SIRVIO.
 ```
+
+## 30. Actualizacion autoritativa: preparacion offline del runner (2026-07-18)
+
+Esta seccion es aditiva y prevalece sobre las referencias historicas de las
+secciones 28 y 29 que presentaban `cbc0ea5...` como `HEAD` actual, describian
+este handoff como modificado pero no committeado o mantenian
+`OFFLINE-RUNNER-PREPARATION` como trabajo aun no iniciado. Esas afirmaciones
+quedaron historicamente superadas por Git y por la preparacion offline aqui
+documentada; no se borran para preservar la trazabilidad.
+
+### 30.1 Reality check reconciliado
+
+Dictamen de entrada: `HANDOFF_REALITY_CHECK_REQUIRES_UPDATE`.
+
+- repositorio: `C:\Proyectos\IPTV-Playlist-Builder-Premium`;
+- rama: `main`;
+- `HEAD`: `6a8e129afc1a16c11e36d991f5bd708d9f9f7030`;
+- `origin/main` local: `6a8e129afc1a16c11e36d991f5bd708d9f9f7030`;
+- divergencia: `0 0`;
+- working tree inicial de esta intervencion: limpio;
+- blob del handoff en `HEAD` y en disco antes de editar:
+  `6749aa8699806005235b13556c786aec80e659f2`;
+- no existia un runner, test, dry-run persistido ni smoke test real posterior;
+- la unica diferencia entre `cbc0ea5...` y `6a8e129...` era el rename/update
+  documental de este handoff.
+
+Reconciliacion de commits:
+
+- `cbc0ea5a874a9f94ece643cbe47dd5385ee705ec` sigue siendo el baseline
+  metodologico y versionado de cierre de 1A;
+- `6a8e129afc1a16c11e36d991f5bd708d9f9f7030` es el commit documental de
+  apertura y continuidad de 1B;
+- el handoff cargado si fue committeado en `6a8e129...`; las frases anteriores
+  que decian lo contrario son historia superada;
+- esta nueva seccion 30 vuelve a dejar el handoff modificado localmente, sin
+  `git add`, commit ni push, para revision humana junto con el runner y tests.
+
+### 30.2 Runs protegidos y hashes antes de preparar
+
+Algoritmo de hash de arbol: SHA-256 de la union ordenada de
+`ruta_relativa|SHA256_ARCHIVO_EN_MAYUSCULAS`, separada por LF.
+
+- FIX4 autoritativo `run_20260717_051437`: 19 archivos; hash de arbol
+  `f21e2f16a7e67fc259328ff7d97520e02ab3bc3f6a33bb5223d3786f299f3b31`;
+  su manifest y reporte conservan el hash logico
+  `B2D3B232EE3FC0C345D48816B230A6A30D0DA67CC2ED53A4175B474D3FF40FF7`;
+- bloqueado `run_20260717_235220`: 5 archivos; hash de arbol
+  `2c5c1a050a79eed81255fa399843fc1ba24d7b41eb728d1b954d9c7451a910b3`;
+- bloqueado `run_20260718_000536`: 5 archivos; hash de arbol
+  `68edb29e1c39e97210b590b854f1b4cd3efbc33d1db8bb8e5277e8cffbed9f34`.
+
+Los dos runs 1B bloqueados continuan declarando cero busquedas, cero llamadas,
+cero resultados y bloqueo por falta de credencial en aquellas tareas Codex.
+No fueron reutilizados ni modificados. Los tres hashes permanecieron identicos
+despues de las pruebas offline.
+
+### 30.3 Runner y pruebas preparados
+
+Archivos nuevos:
+
+- `scripts\run_brand_first_market_universe_1b_tavily_smoke_test_01.py`;
+- `tests\test_run_brand_first_market_universe_1b_tavily_smoke_test_01.py`.
+
+Ruta prevista para un run real nuevo:
+
+`research\output\best_iptv_2026\brand_first_market_universe_1b\tavily_smoke_test_01\run_YYYYMMDD_HHMMSS`
+
+Contrato congelado del runner:
+
+- hash canonico del plan:
+  `705f46e9873801e581039a6f116a7905524764ec91eb0465798fed2c989fd7fe`;
+- cuatro consultas exactas, IDs, roles y orden congelados;
+- Tavily Search mediante `tvly search`;
+- `basic`, maximo 5 resultados, cuatro llamadas fisicas absolutas, una por
+  consulta y cero reintentos;
+- las opciones de answer, imagenes y raw content adicional no se pasan a la
+  CLI;
+- el intento se reserva y el checkpoint se reemplaza atomicamente antes de
+  iniciar cada proceso;
+- cero resultados completa la consulta sin reintento;
+- autenticacion/permisos, presupuesto, plan, configuracion, JSON no
+  estructurado, checkpoint ambiguo, run historico, hash incompatible o run
+  hermano ya completado detienen el flujo;
+- `--dry-run` no invoca backend, autenticacion ni entorno y no crea un run;
+- solo `--execute` puede invocar Search; `--resume-run` es un modificador de
+  `--execute` y valida plan, runner, configuracion, hashes e integridad antes de
+  omitir consultas `COMPLETED`;
+- los estados y artefactos requeridos se escriben de forma atomica;
+- stderr y payloads se sanitizan antes de persistirlos;
+- el runner no lee, comprueba, imprime ni administra `TAVILY_API_KEY`.
+
+Backend local inspeccionado sin autenticacion ni red:
+
+- version: `tavily-cli 0.1.4`;
+- `tvly search` disponible;
+- flags reales: `--json`, `--depth basic`, `--max-results 5`;
+- answer, imagenes y raw content adicional quedan desactivados al omitir sus
+  flags opcionales.
+
+### 30.4 Validaciones offline
+
+- `py_compile`: PASS para runner y tests, con `PYTHONPYCACHEPREFIX` dirigido a
+  una ruta temporal externa al repositorio;
+- `unittest` focalizado: 18/18 PASS;
+- `pytest`: no disponible localmente; no se instalo;
+- dry-run completo: `DRY_RUN_OFFLINE_PASS`;
+- plan: cuatro consultas y presupuesto 4/4 validados;
+- schemas con backend falso: 4 JSON, 3 JSONL, 2 CSV y 1 Markdown PASS;
+- normalizacion reproducible, preservacion raw, ledger, checkpoint atomico,
+  resume y stop conditions: PASS;
+- escaneo de patrones de secretos: cero hallazgos persistidos;
+- `__pycache__` del runner/tests dentro del repositorio: cero archivos nuevos;
+- hashes protegidos antes/despues: identicos.
+
+Durante esta preparacion: llamadas Tavily 0; HTTP 0; DNS 0; sockets 0;
+credenciales leidas 0; creditos consumidos 0; commit/push 0. La ejecucion real
+continua pendiente y debe originarse en PowerShell.
+
+### 30.5 Unico comando PowerShell autorizado para la ejecucion futura
+
+No ejecutar desde Codex. Copiar y pegar como un solo bloque en la sesion
+PowerShell del usuario:
+
+```powershell
+& {
+    $projectRoot = 'C:\Proyectos\IPTV-Playlist-Builder-Premium'
+    Set-Location -LiteralPath $projectRoot
+
+    $env:PYTHONUTF8 = '1'
+    $env:PYTHONIOENCODING = 'utf-8'
+
+    $tvlyCommand = Get-Command tvly -ErrorAction SilentlyContinue
+    if (-not $tvlyCommand) {
+        Write-Error 'Tavily CLI was not found. No search was executed.'
+        exit 3
+    }
+
+    $statusErrorFile = [System.IO.Path]::GetTempFileName()
+
+    try {
+        $authenticationJson = & tvly --status --json 2> $statusErrorFile
+        $authenticationExitCode = $LASTEXITCODE
+        $authenticationText = ($authenticationJson | Out-String).Trim()
+
+        if ($authenticationExitCode -ne 0) {
+            Write-Error "Tavily authentication was not confirmed. Exit code: $authenticationExitCode. No search was executed."
+            exit 3
+        }
+
+        if ([string]::IsNullOrWhiteSpace($authenticationText)) {
+            Write-Error 'Tavily returned an empty authentication status. No search was executed.'
+            exit 3
+        }
+
+        try {
+            $null = $authenticationText | ConvertFrom-Json -ErrorAction Stop
+        }
+        catch {
+            Write-Error 'Tavily returned an invalid JSON authentication status. No search was executed.'
+            exit 3
+        }
+    }
+    finally {
+        Remove-Item -LiteralPath $statusErrorFile -Force -ErrorAction SilentlyContinue
+    }
+
+    $runnerOutput = & python -B .\scripts\run_brand_first_market_universe_1b_tavily_smoke_test_01.py --execute --approval-token 'BRAND-FIRST-1B-TAVILY-SMOKE-TEST-01' --execution-origin powershell 2>&1
+    $runnerExitCode = $LASTEXITCODE
+    $runPathLine = $runnerOutput | Where-Object { $_ -like 'RUN_DIR=*' } | Select-Object -Last 1
+    $runnerOutput |
+        Where-Object { $_ -notlike 'RUN_DIR=*' } |
+        ForEach-Object { Write-Output $_ }
+
+    if ($runPathLine) {
+        Write-Output $runPathLine
+    }
+    else {
+        Write-Error 'The runner did not report a run directory.'
+    }
+    exit $runnerExitCode
+}
+```
+
+Estado al cerrar esta preparacion:
+
+`OFFLINE_RUNNER_PREPARATION_COMPLETE_PENDING_POWERSHELL_EXECUTION`
+
+### 30.6 Hotfix de la compuerta PowerShell (2026-07-18)
+
+El bloque original de la seccion 30.5 comparaba texto con una expresion regular
+que podia confundir un estado negativo terminado en `AVAILABLE` con una
+confirmacion positiva. Ese bloque no debe ejecutarse y fue sustituido in situ
+por la unica version vigente de la seccion 30.5.
+
+La compuerta corregida comprueba primero que `tvly` exista, reserva stderr en un
+archivo temporal, deja stdout separado, exige exit code cero, exige stdout no
+vacio y obliga a que stdout sea JSON valido mediante `ConvertFrom-Json`. Ante
+cualquier fallo sale con codigo 3 antes de alcanzar el runner. El `finally`
+elimina el archivo temporal sin imprimir su contenido. No se modificaron las
+consultas, presupuesto, approval token, origen PowerShell, manejo de `RUN_DIR`
+ni propagacion del exit code del runner.
+
+Validacion offline del hotfix: parser AST PowerShell con cero errores; un unico
+comando `tvly --status --json`; stdout y stderr separados; un
+`ConvertFrom-Json`; cuatro salidas `exit 3` dentro de tres ramas `if` y un
+`catch`; runner situado despues del `finally`; expresion regular defectuosa
+ausente; unittest focalizado 18/18 PASS; `py_compile` PASS. No se ejecuto el
+bloque, Tavily, red ni ninguna lectura de credenciales.
+
+Estado del hotfix:
+
+`POWERSHELL_AUTH_GATE_HOTFIX_COMPLETE_PENDING_EXECUTION`
+
+## 31. Auditoria offline posterior a la ejecucion real (2026-07-18)
+
+Esta seccion es aditiva. Registra el unico run real del smoke test y prevalece
+sobre el estado anterior que lo describia como pendiente. No autoriza repetir,
+reanudar ni reparar retrospectivamente el run.
+
+### 31.1 Reality check posterior
+
+- repositorio: `C:\Proyectos\IPTV-Playlist-Builder-Premium`;
+- rama: `main`;
+- `HEAD` y `origin/main` local:
+  `6a8e129afc1a16c11e36d991f5bd708d9f9f7030`;
+- divergencia: `0 0`;
+- cambios de preparacion preservados: este handoff modificado, runner untracked
+  y tests untracked;
+- unico run nuevo:
+  `run_20260718_014913`;
+- hermanos presentes: solo los bloqueados historicos
+  `run_20260717_235220` y `run_20260718_000536`;
+- el usuario ejecuto una sola vez el bloque PowerShell autorizado;
+- el error interactivo posterior que trato `else` como comando independiente
+  ocurrio al introducir el bloque linea por linea, despues de que el runner
+  devolviera `RUN_DIR`; no es un segundo run ni la causa del estado interno.
+
+### 31.2 Congelacion inicial del run
+
+- archivos: 10;
+- bytes totales: 55,613;
+- hash SHA-256 de arbol:
+  `734cd73bd74d8c5c344e6b9446c7d3d00bf0b21f3062e54dc63e0cd108ced1d3`;
+- runner actual y registrado:
+  `03f4cb8f9fcf5ec3683e94fe722a4fc90ada4c0404ee5e3df17a032610d14fd2`;
+- hash canonico del plan:
+  `705f46e9873801e581039a6f116a7905524764ec91eb0465798fed2c989fd7fe`;
+- hash del archivo `query_plan.json`:
+  `f11cd6cfdd282f58527900bb6748ed804b9ad2b14795774865c43ca8cb955b19`;
+- hash del bloque PowerShell documentado:
+  `d1a9fae2d702c533e1a8fd633d1f1458bf1888e7f73c4979199a0e677a0efd20`.
+
+Hashes de arbol protegidos:
+
+- FIX4 `run_20260717_051437`:
+  `f21e2f16a7e67fc259328ff7d97520e02ab3bc3f6a33bb5223d3786f299f3b31`;
+- bloqueado `run_20260717_235220`:
+  `2c5c1a050a79eed81255fa399843fc1ba24d7b41eb728d1b954d9c7451a910b3`;
+- bloqueado `run_20260718_000536`:
+  `68edb29e1c39e97210b590b854f1b4cd3efbc33d1db8bb8e5277e8cffbed9f34`.
+
+### 31.3 Inventario material
+
+| Artefacto | Bytes | Registros | SHA-256 |
+|---|---:|---:|---|
+| `query_plan.json` | 1,648 | 1 plan / 4 consultas | `f11cd6cfdd282f58527900bb6748ed804b9ad2b14795774865c43ca8cb955b19` |
+| `manifest.json` | 3,054 | 1 objeto | `cb6b4edeefa2e287240ad304ce0ec035e410f511877ddd1337df77713fa7e4e6` |
+| `checkpoint.json` | 2,042 | 1 objeto / 4 estados | `eaffaf93d96cb633e6d741e36c5af0a669d3daac317f1cad48d80b8b9e5d8f05` |
+| `query_ledger.jsonl` | 1,546 | 3 intentos | `6534f24907cb9f2afd9b8f062fbfdcf3b3ad927e6cc7abd999bf3f3e4fc9e2a0` |
+| `raw_results.jsonl` | 13,120 | 2 envelopes / 10 resultados | `b86751d975e840c39283070085146e314a6ca31f3a61dd9bd086b215432867fd` |
+| `normalized_results.csv` | 14,498 | 10 filas | `fa0166fe987df1483ff9b51248b2e8cb0192cc3bc88c4ee2c152331ac2b6b3d2` |
+| `domain_summary.csv` | 1,045 | 8 dominios | `b0c6da90cea1f547e59f7e59bcbe0ca642ae9861eade92da60ad3cf648a9ba5b` |
+| `errors.jsonl` | 3,255 | 1 error | `d50046a6e1fde9445168c84cdcf89f73a5ac860ef295b6de8eccb89b8fa4e358` |
+| `smoke_test_report.md` | 910 | 1 reporte | `959e066d09e6591f6415efea416609d714553f504e7c14466e973f239e41b33b` |
+| `integrity_manifest.json` | 14,495 | 9 hashes no circulares | `22f6ac4bbb330c66d931c7151505543960a6977b85d9f35f9f921cec66b1840f` |
+
+Todos existen y sus formatos JSON, JSONL, CSV o Markdown son validos.
+
+### 31.4 Estado tecnico reconstruido
+
+- run ID: `run_20260718_014913`;
+- estado final: `FAILED_TECHNICAL`;
+- creado: `2026-07-18T05:49:13.828630+00:00`;
+- actualizado: `2026-07-18T05:49:21.135060+00:00`;
+- el schema no guarda `started_at` ni `finished_at` a nivel run;
+- ventana reconstruida desde ledger:
+  `2026-07-18T05:49:13.997854+00:00` a
+  `2026-07-18T05:49:21.105621+00:00`;
+- backend: `tvly-cli-search`, `tavily-cli 0.1.4`;
+- origen disponible: `originated_from_powershell=true`;
+- presupuesto: 4;
+- llamadas reservadas: 3;
+- llamadas fisicas realizadas: 3;
+- llamadas restantes: 1;
+- `COMPLETED`: 2;
+- `FAILED`: 1;
+- `BLOCKED`: 0;
+- `PENDING`: 1;
+- retries: 0;
+- consultas repetidas: 0;
+- maximo de una reserva por consulta: respetado;
+- presupuesto absoluto: respetado.
+
+| Secuencia | Query ID | Estado | Intentos | Llamada | Exit | Resultados preservados |
+|---:|---|---|---:|---:|---:|---:|
+| 1 | `digitalizard_q1_official_company` | `COMPLETED` | 1 | 1 | 0 | 5 |
+| 2 | `digitalizard_q2_reviews_reseller_operator` | `COMPLETED` | 1 | 2 | 0 | 5 |
+| 3 | `smarters_q3_official_player_application` | `FAILED` | 1 | 3 | 1 | 0 |
+| 4 | `smarters_q4_subscription_provider` | `PENDING` | 0 | - | - | 0 |
+
+Manifest, checkpoint y reconstruccion del ledger coinciden: 3 llamadas, dos
+completadas, una fallida y 10 resultados. Q3 fallo dentro de la CLI al serializar
+un caracter `U+1F4FA` bajo CP1252 (`UnicodeEncodeError`); no fue error de
+autenticacion, permisos o parsing del runner. La llamada fisica ya habia sido
+intentada, pero no quedo respuesta raw preservada. Q4 nunca fue llamada.
+
+### 31.5 Metricas de resultados preservados
+
+- resultados brutos embebidos: 10;
+- resultados normalizados: 10;
+- `BRAND_CANDIDATE`: 10;
+- `NEGATIVE_CONTROL`: 0;
+- URLs exactas unicas: 9;
+- URLs canonicas unicas: 9;
+- duplicados exactos: 1;
+- duplicados canonicos: 1;
+- hostnames: 8;
+- dominios registrables: 8;
+- sin URL, titulo, snippet o score: 0 en cada campo;
+- score minimo: `0.46147847`;
+- score maximo: `0.76554126`;
+- score promedio: `0.613150255`;
+- interseccion de dominios entre Q1 y Q2: `digitalizard.app`;
+- interseccion candidato/control: no medible porque el control conserva cero
+  resultados.
+
+Distribucion mecanica: `digitalizard.app` 2; `trustpilot.com` 2; y una fila
+cada uno para `digitalizard.io`, `digitalizard-iptv.com`,
+`digitallizardiptv.io`, `digital-lizard-iptv.com`, `digitalizard.com` y
+`digitalizard.eu`.
+
+Valor marginal: llamada 1 aporto 5 URLs; llamada 2 aporto 5 filas y 4 URLs
+canonicas nuevas frente a Q1; llamada 3 aporto cero evidencia preservada por el
+fallo tecnico; la llamada 4 no existio. Promedio: 3.33 filas normalizadas por
+llamada fisica realizada, o 5 por llamada completada.
+
+### 31.6 Trazabilidad e integridad
+
+- plan congelado, orden, IDs y texto: PASS;
+- integrity manifest y sus 9 archivos no circulares: PASS;
+- hashes de envelopes raw: 2/2 PASS;
+- IDs raw estables: 2/2 PASS;
+- hashes de filas normalizadas contra el item raw por rank: 10/10 PASS;
+- IDs normalizados estables: 10/10 PASS;
+- URLs canonicas reproducidas: 10/10 PASS;
+- query IDs de raw, normalized y ledger contenidos en el plan: PASS;
+- referencias ledger a raw existentes: 2/2 PASS;
+- IDs raw duplicados: 0;
+- IDs normalizados duplicados: 0;
+- hallazgos de secretos: 0;
+- stderr sensible o headers de autorizacion persistidos: 0;
+- consultas adicionales: 0;
+- Extract, Map, Crawl, Research o Agent Skills: 0.
+
+La unica fila de errores contiene un traceback tecnico sanitizado de la CLI y
+no contiene credenciales.
+
+### 31.7 Auditoria semantica offline
+
+DigitaLizard ya existia nominalmente en 1A con estado
+`REQUIRES_SOURCE_REVIEW` y concentracion promocional alta. El run aporta ocho
+URLs canonicas nuevas de las nueve unicas; la URL base de Trustpilot para la
+variante `digitallizard.com` ya estaba en el registro 1A.
+
+Q1 recupero cinco superficies plausiblemente relacionadas y autoafirmadas como
+servicios de suscripcion. Son `PLAUSIBLY_RELEVANT`,
+`FIRST_PARTY_SELF_ASSERTION` y `SUBSCRIPTION_PROVIDER_CLAIM`, pero no prueban
+identidad comun ni oficialidad:
+
+- `norm_54196b8dc1be8ea352ba530d`;
+- `norm_b0e797ac2d2c67dba7433802`;
+- `norm_c5d59813cd6d553302fe18e8`;
+- `norm_43cb687a330b565c2ef96d92`;
+- `norm_3415776163f12d92dd9534b0`.
+
+La multiplicidad de dominios y variantes de spelling mantiene una relacion
+`UNRESOLVED` y riesgo `HOMONYM_OR_NOISE`; no permite elevar una autoafirmacion
+a identidad demostrada.
+
+Q2 aporto informacion diferente: dos referencias de reviews en Trustpilot,
+una repeticion de la superficie `.app`, un blog con `RESELLER_SIGNAL` y otra
+superficie autoafirmada `.eu`:
+
+- `norm_53c106fd147380bbbb8500a5` y
+  `norm_568de049333f5a76834b0e80`: `INDEPENDENT_REFERENCE` y
+  `REVIEW_OR_RANKING`, con valor limitado para identidad;
+- `norm_e9b86942010c01bb4e8a97bd`: repeticion
+  `FIRST_PARTY_SELF_ASSERTION`;
+- `norm_66a8fd61ab7c96d1baa96628`: `RESELLER_SIGNAL`, sin demostrar que la
+  entidad sea el reseller;
+- `norm_73a3319a859c90501f17aaee`: `FIRST_PARTY_SELF_ASSERTION` y
+  `SUBSCRIPTION_PROVIDER_CLAIM`.
+
+No se preservo evidencia de Q3 y Q4 no se ejecuto. Por tanto no puede evaluarse
+si el control recuperaba correctamente `PLAYER_APPLICATION`, si confundia
+player con proveedor ni si media precision conceptual. El control negativo no
+funciono como instrumento auditable en este run.
+
+### 31.8 Valor informativo, dictamen y continuidad
+
+El smoke test demostro que `Search/basic/max_results=5` puede descubrir
+superficies nuevas y trazables para la marca candidata. La relevancia topical
+de las diez filas preservadas es alta, pero la precision de identidad sigue
+sin resolver, predomina la autoafirmacion y falta por completo el control
+negativo. Cuatro llamadas habrian sido suficientes para la pregunta tecnica,
+pero solo dos completaron y tres fueron intentadas.
+
+No quedo demostrada oficialidad, operador, legalidad, legitimidad, calidad de
+proveedor ni diferenciacion candidato/control.
+
+Dictamen del smoke test:
+
+`SIRVIO_PARCIALMENTE`
+
+Decision de continuidad:
+
+`B. HACER UN FIX OFFLINE DEL RUNNER, SIN NUEVAS LLAMADAS.`
+
+El fix debe estudiar el fallo de encoding CP1252/UTF-8 y validarse con mocks o
+fixtures Unicode. No autoriza reanudar este run, repetir Q3, ejecutar Q4, crear
+otro run, consumir la llamada restante ni iniciar 1B controlado.
+
+### 31.9 Estado de cierre
+
+- ejecuciones del run: 1;
+- repeticion o resume: 0;
+- llamadas Tavily adicionales durante la auditoria: 0;
+- HTTP, DNS o sockets adicionales: 0;
+- credenciales leidas: 0;
+- creditos adicionales: 0;
+- commit/push: 0.
+
+Dictamen tecnico de auditoria:
+
+`POST_EXECUTION_OFFLINE_AUDIT_COMPLETE`
+
+## 32. Fix offline de Unicode en Windows (2026-07-18)
+
+Esta seccion es aditiva y documenta `WINDOWS-UTF8-OFFLINE-FIX-01`. No cambia
+el dictamen semantico del run real, no completa el smoke test y no autoriza
+ejecutar ni reanudar consultas.
+
+### 32.1 Causa y estado preservado
+
+El runner lanzaba `tvly` mediante `subprocess.run` con stdout y stderr
+capturados como texto, pero sin `encoding` ni `errors` explicitos. En Windows,
+el proceso Python de `tavily-cli 0.1.4` escribia hacia un pipe y selecciono
+CP1252. Al intentar emitir el emoji U+1F4FA durante Q3, la CLI lanzo
+`UnicodeEncodeError` antes de producir un documento JSON completo. Cambiar
+solamente la pagina de codigos de la consola no garantiza el encoding de un
+pipe de Python.
+
+El runner preservo correctamente un unico intento fallido, el exit code y el
+traceback tecnico sanitizado. El estado historico permanece:
+
+- Q1: `COMPLETED`, 5 resultados;
+- Q2: `COMPLETED`, 5 resultados;
+- Q3: `FAILED`, un solo intento y sin evidencia JSON completa;
+- Q4: `PENDING` y nunca ejecutada;
+- retries: 0;
+- fallo de autenticacion o permisos: no;
+- dictamen: `SIRVIO_PARCIALMENTE`;
+- decision: `B. HACER UN FIX OFFLINE DEL RUNNER, SIN NUEVAS LLAMADAS.`
+
+### 32.2 Correccion minima aplicada
+
+El camino controlado que invoca `tvly` ahora fuerza de manera temporal y no
+secreta `PYTHONUTF8=1` y `PYTHONIOENCODING=utf-8`. Conserva la herencia normal
+del proceso mediante `env=None`: no copia, enumera, imprime ni persiste el
+entorno. Solo consulta, sustituye y restaura esos dos nombres no sensibles.
+
+La captura usa bytes (`text=False`) y stdout/stderr se decodifican
+explicitamente como UTF-8 estricto. El JSON Unicode valido se conserva sin
+reemplazos. Un byte invalido genera `TVLY_OUTPUT_DECODE_ERROR`, queda
+sanitizado y falla en el primer intento sin retry. El manifest solo registra
+el contrato no sensible de encoding, nunca valores del entorno.
+
+El bloque PowerShell vigente de la seccion 30.5 se sincronizo con el generado
+por el runner. Es una unica unidad `& { ... }`, establece las dos defensas
+UTF-8 antes de la compuerta, mantiene `tvly --status --json`, el token de
+aprobacion, `--execution-origin powershell`, `RUN_DIR` y la propagacion del
+exit code. Esta actualizacion no ejecuto el bloque.
+
+### 32.3 Pruebas y validacion exclusivamente offline
+
+El conjunto focalizado contiene 23 pruebas y cubre ASCII, JSON UTF-8 con
+emoji, espanol, guion largo, griego y CJK; stderr Unicode; bytes fragmentados;
+stdout vacio; JSON invalido; exit code no cero; autenticacion simulada fallida;
+ausencia de retry; persistencia Unicode en raw y CSV; hashes e IDs
+reproducibles; entorno falso no filtrado; schemas; secretos; y reproduccion
+del fallo historico CP1252. La ejecucion falsa completa procesa exactamente
+las cuatro consultas con cuatro llamadas simuladas.
+
+Resultados: `py_compile` PASS; unittest 23/23 PASS; pytest no instalado y no
+instalado por esta tarea; parser AST PowerShell sin errores; dry-run PASS con
+cero llamadas, cero autenticaciones y cero lecturas de entorno; validaciones
+JSON, JSONL, CSV y Markdown PASS; escaneo de secretos sin hallazgos; y
+`git diff --check` PASS.
+
+### 32.4 Hashes e inmutabilidad
+
+Los hashes SHA-256 de arbol iniciales y finales de los runs son identicos:
+
+- `run_20260718_014913`:
+  `734cd73bd74d8c5c344e6b9446c7d3d00bf0b21f3062e54dc63e0cd108ced1d3`;
+- `run_20260717_051437`:
+  `f21e2f16a7e67fc259328ff7d97520e02ab3bc3f6a33bb5223d3786f299f3b31`;
+- `run_20260717_235220`:
+  `2c5c1a050a79eed81255fa399843fc1ba24d7b41eb728d1b954d9c7451a910b3`;
+- `run_20260718_000536`:
+  `68edb29e1c39e97210b590b854f1b4cd3efbc33d1db8bb8e5277e8cffbed9f34`.
+
+Hashes de archivos de trabajo antes y despues del fix:
+
+- runner: `03f4cb8f9fcf5ec3683e94fe722a4fc90ada4c0404ee5e3df17a032610d14fd2`
+  -> `b09a6e7d143a4d03255600d4f688a0d2855d6676e98cef801d0aef9e69caf939`;
+- pruebas: `9edd3f53071de35b05a9aa13a5be47da0a2559869a23a125664baa293de6687a`
+  -> `71c0cb8b185e0c3fec65e7c62c73e44e5cd9336e7932479296747ee6cf338ec5`;
+- handoff antes del fix:
+  `542d326211c2b3bd41e86c4b026701252b3974aed40d0ec8b8b75c14a0557312`.
+
+El hash final del propio handoff se registra en el cierre externo, porque
+incluirlo dentro del mismo archivo volveria a modificarlo.
+
+### 32.5 Cierre y limite de autorizacion
+
+Durante esta tarea: Tavily 0; HTTP 0; DNS 0; sockets 0; credenciales leidas o
+enumeradas 0; creditos 0; commit/push 0. El run real y los historicos quedaron
+byte-identicos. No se autoriza `--resume-run`, repetir Q3, ejecutar Q4, crear un
+nuevo run ni iniciar 1B controlado. El smoke test continua incompleto y sujeto
+a revision humana.
+
+Dictamen tecnico:
+
+`WINDOWS_UTF8_OFFLINE_FIX_COMPLETE_PENDING_HUMAN_REVIEW`
+
+## 33. Preparacion del runner API de completitud (2026-07-18)
+
+Esta seccion es aditiva y registra la decision humana expresa posterior al fix
+UTF-8 de la CLI. La estrategia vigente abandona cualquier reparacion adicional
+de `tavily-cli`: la futura completitud se realizara mediante un runner separado
+que usa el SDK oficial `tavily-python`. Codex solo preparo y valido ese camino
+offline; no ejecuto Tavily ni leyo credenciales.
+
+### 33.1 Autorizacion y limites
+
+El run parcial
+`research/output/best_iptv_2026/brand_first_market_universe_1b/tavily_smoke_test_01/run_20260718_014913`
+permanece inmutable con SHA-256 de arbol
+`734cd73bd74d8c5c344e6b9446c7d3d00bf0b21f3062e54dc63e0cd108ced1d3`.
+Q1 y Q2 ya son validas y no forman parte del runner nuevo.
+
+La autorizacion futura queda limitada a:
+
+- Q3 `smarters_q3_official_player_application_api_recovery`: una unica
+  repeticion tecnica por perdida de la respuesta CLI bajo CP1252;
+- Q4 `smarters_q4_subscription_provider_api_completion`: primera ejecucion;
+- presupuesto absoluto: maximo 2 llamadas Search;
+- una llamada por consulta y cero retries;
+- `search_depth="basic"`, `max_results=5`, `auto_parameters=False`,
+  `include_answer=False`, `include_images=False` e
+  `include_raw_content=False`;
+- sin Extract, Map, Crawl, Research ni Agent Skills.
+
+Esta autorizacion no permite modificar o reanudar el run parcial, repetir Q1 o
+Q2, ampliar consultas ni superar dos llamadas.
+
+### 33.2 Runner separado y credenciales
+
+El runner nuevo es
+`scripts/run_brand_first_1b_tavily_api_completion.py`. Crea exclusivamente un
+run nuevo bajo
+`research/output/best_iptv_2026/brand_first_market_universe_1b/tavily_smoke_test_01_api_completion/run_<timestamp>`
+y no ofrece modo resume.
+
+El SDK local `tavily-python 0.7.26` esta disponible y su `TavilyClient.search`
+acepta todos los parametros congelados. Solo durante una futura ejecucion
+aprobada, el runner consulta por nombre `TAVILY_API_KEY` en el entorno heredado
+del proceso PowerShell para inicializar `TavilyClient`. No enumera el entorno,
+no imprime o persiste el valor, no lo agrega al comando y sanitiza errores. Si
+la variable falta, se detiene antes de crear el cliente, el run o una llamada.
+
+El approval token obligatorio es
+`BRAND-FIRST-1B-API-COMPLETION-01` y el origen obligatorio es PowerShell.
+
+### 33.3 Contrato de ejecucion y artefactos
+
+El runner reserva y checkpointa cada intento antes de llamar. Cada consulta
+tiene como maximo un intento; un error detiene el run sin retry y deja la
+consulta siguiente pendiente. La llamada SDK usa exactamente la consulta
+congelada y los seis parametros autorizados.
+
+Los nueve artefactos son `query_plan.json`, `manifest.json`,
+`checkpoint.json`, `query_ledger.jsonl`, `raw_results.jsonl`,
+`normalized_results.csv`, `errors.jsonl`, `completion_report.md` e
+`integrity_manifest.json`. El manifest declara la repeticion tecnica autorizada
+de Q3, que Q1/Q2 no se repiten, presupuesto, llamadas usadas, resultados,
+vinculo al run parcial y ausencia de secretos. El integrity manifest compara
+el hash inicial/final del run parcial y verifica los otros ocho artefactos.
+
+### 33.4 Validacion offline
+
+Las 12 pruebas focalizadas usan exclusivamente un `TavilyClient` falso y
+cubren: Q3/Q4 exactas; maximo dos llamadas; cero retries; exclusion de Q1/Q2;
+Unicode con emoji, tildes, ene, guion largo, griego y CJK; JSON/JSONL/CSV y
+Markdown UTF-8; cinco resultados; cero resultados; autenticacion ausente;
+errores 401 y 429; sanitizacion; hashes e IDs reproducibles; checkpoint antes y
+despues de cada consulta; approval token; origen PowerShell; y preservacion del
+run parcial.
+
+Resultados: `py_compile` PASS; unittest 12/12 PASS; dry-run PASS con cero
+lecturas de credenciales, cero clientes, cero red y ningun run creado;
+ejecucion falsa completa 2/2 llamadas simuladas PASS; schemas PASS; parser AST
+PowerShell sin errores; escaneo de secretos sin hallazgos; `git diff --check`
+PASS. No se instalo ningun paquete.
+
+### 33.5 Bloque PowerShell preparado, no ejecutado
+
+El unico bloque vigente para la futura ejecucion API es autocontenido, comprueba
+la disponibilidad de la variable sin imprimirla, ejecuta solo el runner API,
+propaga el exit code y conserva `RUN_DIR`:
+
+```powershell
+& {
+    $projectRoot = 'C:\Proyectos\IPTV-Playlist-Builder-Premium'
+    Set-Location -LiteralPath $projectRoot
+
+    if (-not (Test-Path -LiteralPath Env:\TAVILY_API_KEY) -or
+        [string]::IsNullOrWhiteSpace($env:TAVILY_API_KEY)) {
+        Write-Error 'TAVILY_API_KEY is unavailable in this PowerShell process. No API call was made.'
+        exit 3
+    }
+
+    $env:PYTHONUTF8 = '1'
+    $env:PYTHONIOENCODING = 'utf-8'
+
+    $runnerOutput = & python -B .\scripts\run_brand_first_1b_tavily_api_completion.py --execute --approval-token 'BRAND-FIRST-1B-API-COMPLETION-01' --execution-origin powershell 2>&1
+    $runnerExitCode = $LASTEXITCODE
+    $runPathLine = $runnerOutput | Where-Object { $_ -like 'RUN_DIR=*' } | Select-Object -Last 1
+    $runnerOutput |
+        Where-Object { $_ -notlike 'RUN_DIR=*' } |
+        ForEach-Object { Write-Output $_ }
+
+    if ($runPathLine) {
+        Write-Output $runPathLine
+    }
+    elseif ($runnerExitCode -eq 0) {
+        Write-Error 'The runner did not report a run directory.'
+        exit 2
+    }
+    exit $runnerExitCode
+}
+```
+
+El bloque no fue ejecutado durante esta preparacion. La ejecucion API continua
+pendiente de que el usuario lo ejecute manualmente desde PowerShell.
+
+Estado tecnico:
+
+`API_COMPLETION_RUNNER_READY_FOR_POWERSHELL_EXECUTION`
+
+## 34. Auditoria consolidada offline y cierre metodologico (2026-07-18)
+
+Esta seccion es aditiva. Consolida exclusivamente el run parcial
+`run_20260718_014913` y el run API nombrado `run_20260718_032124`. Los dos
+arboles fuente permanecieron inmutables y no se ejecuto Tavily, `tvly`, ningun
+runner, red ni lectura de credenciales durante la auditoria.
+
+### 34.1 Reality check y discrepancia operacional
+
+- repositorio: `C:\Proyectos\IPTV-Playlist-Builder-Premium`;
+- rama: `main`;
+- `HEAD` y `origin/main` local:
+  `6a8e129afc1a16c11e36d991f5bd708d9f9f7030`;
+- divergencia: `0 0`;
+- hash inicial/final de `run_20260718_014913`:
+  `734cd73bd74d8c5c344e6b9446c7d3d00bf0b21f3062e54dc63e0cd108ced1d3`;
+- hash inicial/final de `run_20260718_032124`:
+  `475c835d7c1643dfa9d10e5632d707e7ac8ba01fb1809e160cbabbdf12a1543f`.
+
+No pudo confirmarse la ausencia de un tercer run real. El inventario contiene
+tambien `run_20260718_031814` y `run_20260718_031913`; ambos declaran
+`EXECUTION_COMPLETED`, dos llamadas, Q3/Q4 completadas, un intento por consulta
+y cero errores. Sus hashes de arbol son, respectivamente,
+`d8bb92778a2963c87c5df2a2ae69563a0ef12154c2017e3447620b7f15148847` y
+`79e4413e8bb8b0967b21c9bda4c6e99132f84ec05eecb0cecd7518a6b8095122`.
+No se modificaron ni se incorporaron a la consolidacion semantica.
+
+Por tanto, en los dos runs nombrados existen cuatro llamadas completadas con
+evidencia, pero cinco intentos fisicos: Q1, Q2, Q3 CLI fallida, Q3 API recovery
+y Q4 API. Al incluir los dos runs API adicionales observados, el inventario
+registra nueve intentos fisicos, no cuatro. Esta discrepancia bloquea un cierre
+tecnico limpio aunque no invalida la auditoria metodologica de las 20 filas
+nombradas.
+
+### 34.2 Estado tecnico de los runs nombrados
+
+`run_20260718_014913` conserva:
+
+- Q1 `COMPLETED`, 5 resultados y un intento;
+- Q2 `COMPLETED`, 5 resultados y un intento;
+- Q3 `FAILED` por `TVLY_PROCESS_ERROR`, un intento, sin raw completo;
+- Q4 `PENDING`, cero intentos;
+- tres llamadas fisicas, cero retries y un error tecnico sanitizado.
+
+`run_20260718_032124` conserva:
+
+- estado `EXECUTION_COMPLETED`;
+- Q3 API recovery `COMPLETED`, 5 resultados y un intento;
+- Q4 API completion `COMPLETED`, 5 resultados y un intento;
+- dos llamadas, cero retries, `errors.jsonl` vacio;
+- Q1/Q2 ausentes;
+- hash inicial/final del run parcial identico.
+
+La recomputacion independiente valido planes, manifests, checkpoints, ledgers,
+raw JSONL, CSV normalizado, reports Markdown, integrity manifests, errores,
+presupuestos, consultas, intentos, hashes de artefactos, raw IDs, normalized
+IDs, URLs canonicas, dominios y trazabilidad ledger -> raw -> normalized. No
+hubo mismatches internos ni hallazgos de secretos en los dos runs nombrados.
+
+### 34.3 Metricas consolidadas
+
+- consultas logicas con evidencia preservada: 4/4;
+- resultados: 20, cinco por consulta;
+- URLs canonicas unicas: 19;
+- dominios registrables unicos: 18;
+- duplicados exactos: 1;
+- resultados aproximadamente relevantes: 19/20;
+- resultados con ruido u homonimia de identidad: 3/20;
+- first-party autoafirmados: 8;
+- referencias independientes: 3;
+- reviews/rankings: 2;
+- senales de reseller: 4;
+- promociones/afiliados: 6;
+- player/application: 5;
+- software product: 5;
+- subscription provider claims: 5;
+- unresolved respecto de identidad u oficialidad: 19.
+
+La relevancia es topical y puede solaparse con ruido de identidad: dos fichas
+de apps en Q3 son conceptualmente players pero no prueban ser el producto
+oficial, y un resultado Q4 es un nombre cercano con perfil SEO.
+
+Promedios de score:
+
+- Q1: `0.70366526`;
+- Q2: `0.52263525`;
+- Q3 API: `0.69645206`;
+- Q4 API: `0.68317711`.
+
+### 34.4 DigitaLizard
+
+Q1 recupero cinco superficies comerciales autoafirmadas en cinco dominios.
+Son utiles para discovery, pero no prueban dominio oficial, operador comun,
+entidad juridica, calidad, legalidad ni legitimidad.
+
+Q2 aporto dos superficies de Trustpilot, una repeticion exacta de
+`digitalizard.app/euro-iptv`, un blog con senal de reseller/SEO y una nueva
+superficie `.eu`. Frente a Q1, su valor marginal es cuatro URLs y tres dominios
+nuevos, con mayor diversidad de tipo de evidencia. En conjunto Q1/Q2 contienen
+nueve URLs unicas y ocho dominios; ocho de esas nueve URLs son nuevas frente al
+corpus 1A. Predomina la autoafirmacion y la relacion entre variantes de spelling
+y dominios permanece `UNRESOLVED`.
+
+### 34.5 IPTV Smarters Pro y control negativo
+
+Q3 recupero cinco resultados de player/software: app stores, una explicacion
+comunitaria y una superficie de descarga plausiblemente first-party. Q4
+recupero cuatro superficies claras de suscripcion, reseller o promocion y un
+resultado SEO de nombre cercano. Q3 y Q4 no comparten URL ni dominio.
+
+El control negativo funciono: Q3 representa IPTV Smarters Pro como
+player/aplicacion y Q4 provoca vendedores, resellers y sitios que usan o se
+aproximan al nombre para vender suscripciones. La diferencia conceptual es
+clara; la oficialidad de superficies concretas sigue sin demostrarse.
+
+### 34.6 Valor marginal y dictamen metodologico
+
+- Q1: 5 URLs y 5 dominios nuevos dentro del smoke test; discovery fuerte,
+  identidad debil;
+- Q2: 4 URLs y 3 dominios marginales; agrega reviews y senal de reseller;
+- Q3: 5 URLs y 5 dominios; establece el lado player/software del control;
+- Q4: 5 URLs y 5 dominios; expone proveedores, promociones y ruido
+  interpretable.
+
+Dictamen del metodo para los dos runs nombrados:
+
+`SIRVIO`
+
+Las cuatro consultas tienen evidencia preservada y trazable; DigitaLizard
+aporta superficies nuevas y utiles para discovery; el control diferencia
+player de proveedor; el ruido es interpretable; y
+`Search/basic/max_results=5` demuestra utilidad para ampliar 1B. El dictamen
+no evalua identidad, calidad, legalidad o legitimidad.
+
+Decision de continuidad:
+
+`A. CERRAR SMOKE TEST Y DISEÑAR BRAND-FIRST-MARKET-UNIVERSE-1B CONTROLADO.`
+
+Esta decision no autoriza llamadas nuevas. Antes de cualquier uso adicional de
+Tavily debe reconciliarse offline el origen y estatus de los dos runs API
+adicionales y disenar el contrato controlado de 1B.
+
+### 34.7 Artefactos derivados y cierre tecnico
+
+Los outputs derivados, ignorados por Git y separados de los runs fuente, estan
+en:
+
+`research/output/best_iptv_2026/brand_first_market_universe_1b/tavily_smoke_test_01_consolidated_audit/audit_20260718_033013`
+
+Artefactos: `consolidated_results.csv`, `semantic_audit.csv`,
+`query_comparison.csv`, `domain_comparison.csv`,
+`consolidated_metrics.json`, `consolidated_audit_report.md` e
+`integrity_manifest.json`.
+
+Validaciones: JSON PASS; JSONL fuente PASS; CSV PASS; Markdown PASS; schemas
+PASS; hashes de artefactos PASS; trazabilidad 20/20 PASS; secretos 0;
+inmutabilidad de ambos runs nombrados PASS; `git diff --check` PASS. Durante la
+auditoria: llamadas Tavily adicionales 0; red adicional 0; credenciales leidas
+0; creditos adicionales 0; commit/push 0.
+
+La auditoria consolidada esta completa, pero la discrepancia del inventario
+impide usar el dictamen tecnico `COMPLETE` hasta reconciliar los dos runs API
+adicionales.
+
+Dictamen tecnico:
+
+`CONSOLIDATED_OFFLINE_AUDIT_REQUIRES_FIXES`
+
+## 35. Cierre minimo de duplicados API y apertura del piloto multirregional (2026-07-18)
+
+Esta seccion es aditiva y reemplaza operativamente, sin borrar historia, la
+incertidumbre de 34.1/34.7 y el bloque PowerShell de 33.5. Durante esta
+intervencion no se ejecuto Tavily, no hubo red, no se leyo ninguna credencial,
+no se consumieron creditos y no se hizo `git add`, commit ni push.
+
+### 35.1 Tres ejecuciones API accidentales preservadas
+
+La aclaracion humana confirma que el mismo bloque se ejecuto manualmente tres
+veces porque `exit $runnerExitCode` cerraba la ventana antes de poder revisar
+el resultado. No fueron retries internos ni consultas nuevas. Los tres runs se
+preservan sin modificacion.
+
+La verificacion offline independiente valido en cada run: nueve artefactos,
+integrity manifest, plan exacto Q3/Q4, checkpoint `EXECUTION_COMPLETED`, dos
+llamadas, un intento por consulta, cinco resultados por consulta, diez filas
+normalizadas, ledger -> raw -> normalized, Q1/Q2 ausentes, cero errores y cero
+retries. Los tres contienen las mismas diez URLs y scores.
+
+- `run_20260718_031814`:
+  `API_COMPLETION_RUN_AUTHORITATIVE`; hash de arbol
+  `d8bb92778a2963c87c5df2a2ae69563a0ef12154c2017e3447620b7f15148847`.
+- `run_20260718_031913`:
+  `ACCIDENTAL_DUPLICATE_EXECUTION_PRESERVED`; hash de arbol
+  `79e4413e8bb8b0967b21c9bda4c6e99132f84ec05eecb0cecd7518a6b8095122`.
+- `run_20260718_032124`:
+  `ACCIDENTAL_DUPLICATE_EXECUTION_PRESERVED`; hash de arbol
+  `475c835d7c1643dfa9d10e5632d707e7ac8ba01fb1809e160cbabbdf12a1543f`.
+
+Contabilidad fisica corregida:
+
+- ejecuciones API manuales: `3`;
+- llamadas API por ejecucion: `2`;
+- llamadas API observadas: `6`;
+- retries internos: `0`;
+- intentos CLI previos: `3`;
+- intentos fisicos observados totales: `9`.
+
+El dictamen metodologico del smoke test se mantiene usando solo el primer run
+completo como autoridad:
+
+`SIRVIO`
+
+### 35.2 Guardia API y correccion de PowerShell
+
+`scripts/run_brand_first_1b_tavily_api_completion.py` ahora busca primero un
+run completo compatible, prioriza explicitamente `run_20260718_031814` y
+bloquea antes de leer `TAVILY_API_KEY`, crear cliente, crear directorio o hacer
+una llamada. Al bloquear, el runner imprime el `RUN_DIR` autoritativo.
+
+El bloque que devuelve `powershell_block()` ya no contiene ningun `exit`, no
+cierra la ventana y siempre imprime `RUNNER_EXIT_CODE`. Cuando el runner
+informa un run, conserva e imprime `RUN_DIR`, y muestra
+`DO_NOT_RUN_AGAIN_IF_RUN_DIR_WAS_PRINTED`. El bloque historico de 33.5 queda
+expresamente superseded y no debe volver a ejecutarse.
+
+### 35.3 Contrato del piloto amplio
+
+Se preparo el runner separado
+`scripts/run_brand_first_1b_multiregion_pilot.py` para
+`SEARCH-MAP-EXTRACT-MULTIREGION-PILOT-01`. El flujo congelado es:
+
+1. Search de fuentes de mercado.
+2. Seleccion humana offline de 1 a 5 fuentes.
+3. Map solo sobre esas fuentes aprobadas.
+4. Seleccion humana offline de 1 a 10 paginas concretas halladas por Search o
+   Map.
+5. Extract de una URL concreta por operacion.
+6. Consolidacion offline de marcas, procedencia e independencia.
+
+El runner implementa `--dry-run`, `--execute`, token exacto, origen PowerShell,
+checkpoint antes de cada intento, reserva de presupuesto, resume sin repetir
+operaciones completadas, escrituras atomicas UTF-8, JSON/JSONL/CSV/Markdown,
+sanitizacion, manifests de integridad y guardia contra cualquier run compatible
+ya creado. Una seleccion invalida se bloquea antes de leer la credencial o
+crear el cliente. Los archivos de seleccion son las unicas entradas humanas
+mutables y se vuelven a incorporar al manifest de integridad antes de Map o
+Extract.
+
+Crawl y Research tienen contrato visible con `designed=true`,
+`authorized=false` y `executable_stage=false`. No existe una ruta automatica
+que pueda invocarlos; requieren revision del piloto y autorizacion humana
+separada.
+
+### 35.4 Consultas propuestas y presupuesto exacto
+
+Las diez consultas estan orientadas a fuentes, no a dominios individuales:
+
+1. `best IPTV services 2026 comparison USA Canada`
+2. `IPTV providers reviews 2026 USA Canada`
+3. `IPTV services community recommendations forum USA Canada`
+4. `IPTV providers Europe 2026 comparison reviews`
+5. `best IPTV services UK Germany France 2026`
+6. `mejores servicios IPTV Europa 2026 comparativa`
+7. `mejores servicios IPTV 2026 Latinoamerica comparativa`
+8. `proveedores IPTV resenas Mexico Argentina Colombia`
+9. `servicios IPTV Latinoamerica recomendaciones comunidad`
+10. `IPTV provider directory market comparison 2026`
+
+Presupuesto rigido visible antes de ejecutar:
+
+- Search: `10` operaciones;
+- Map: `5` operaciones maximas;
+- Extract: `10` operaciones maximas;
+- presupuesto operativo global: `25`;
+- techo absoluto global: `30`;
+- retries automaticos: `0`.
+
+Autenticacion, rate limit, presupuesto agotado o respuesta estructuralmente
+invalida detienen el flujo. Dos errores genericos con la misma firma tambien
+lo detienen. Cada operacion tiene como maximo un intento.
+
+### 35.5 Taxonomia, independencia, artefactos y metricas
+
+El plan congela los niveles A-E pedidos y las nueve senales de independencia:
+texto duplicado, mismo orden de marcas, template, empresa, autor, contacto, red
+de dominios, codigo de afiliado y republicacion.
+
+Se preparan los quince outputs solicitados y cuatro artefactos operativos
+adicionales: `source_selection.json`, `extract_selection.json`,
+`operation_ledger.jsonl` y `errors.jsonl`. Los schemas de menciones y
+candidatos conservan `supporting_row_ids`; los envelopes Search/Map/Extract
+conservan operation ID, URL, hash y payload sanitizado para procedencia
+completa.
+
+`pilot_metrics.json` prepara: marcas mencionadas, marcas nuevas frente al
+historico, repeticion independiente, fuentes A-E, cobertura regional y
+linguistica, duplicacion exacta/SEO, ruido, valor informativo por operacion y
+valor marginal de Search, Map y Extract. Las metricas que requieren criterio
+humano permanecen explicitamente
+`PENDING_OFFLINE_CONSOLIDATION`, no se inventan durante adquisicion.
+
+### 35.6 Validacion offline y unico comando futuro
+
+Pruebas focalizadas: runner API `13/13` PASS; runner multirregional `7/7` PASS;
+total `20/20` PASS. Cubren mocks exactos de Search/Map/Extract, presupuesto,
+auth, respuesta estructural invalida, cero retries, checkpoint, resume/no-op
+sin nuevas lecturas ni llamadas, selecciones offline, schemas, UTF-8, secretos,
+guardias y PowerShell sin `exit`. `py_compile`, dry-run y `git diff --check`
+tambien pasan.
+
+Este es el unico comando PowerShell futuro vigente. No fue ejecutado. Solo
+inicia Search; si imprime `RUN_DIR`, no debe repetirse y el siguiente paso es
+la seleccion offline anterior a Map:
+
+```powershell
+& {
+    $projectRoot = 'C:\Proyectos\IPTV-Playlist-Builder-Premium'
+    Set-Location -LiteralPath $projectRoot
+
+    if (-not (Test-Path -LiteralPath Env:\TAVILY_API_KEY) -or
+        [string]::IsNullOrWhiteSpace($env:TAVILY_API_KEY)) {
+        Write-Error 'TAVILY_API_KEY is unavailable in this PowerShell process. No Tavily operation was made.'
+        $runnerExitCode = 3
+    }
+    else {
+        $env:PYTHONUTF8 = '1'
+        $env:PYTHONIOENCODING = 'utf-8'
+
+        $runnerOutput = & python -B .\scripts\run_brand_first_1b_multiregion_pilot.py --execute --approval-token 'BRAND-FIRST-1B-MULTIREGION-PILOT-01' --execution-origin powershell 2>&1
+        $runnerExitCode = $LASTEXITCODE
+        $runPathLine = $runnerOutput | Where-Object { $_ -like 'RUN_DIR=*' } | Select-Object -Last 1
+        $runnerOutput |
+            Where-Object { $_ -notlike 'RUN_DIR=*' } |
+            ForEach-Object { Write-Output $_ }
+
+        if ($runPathLine) {
+            Write-Output $runPathLine
+        }
+        elseif ($runnerExitCode -eq 0) {
+            Write-Error 'The runner did not report a run directory.'
+            $runnerExitCode = 2
+        }
+    }
+    Write-Output "RUNNER_EXIT_CODE=$runnerExitCode"
+    Write-Output 'NEXT_STAGE=OFFLINE_SOURCE_SELECTION_BEFORE_MAP'
+    Write-Output 'DO_NOT_RUN_AGAIN_IF_RUN_DIR_WAS_PRINTED'
+}
+```
+
+Estado de esta intervencion: Tavily nuevo `0`; red `0`; credenciales leidas
+`0`; creditos nuevos `0`; commit/push `0`.
+
+Dictamen final:
+
+`MULTIREGION_PILOT_OFFLINE_PREPARATION_COMPLETE_PENDING_HUMAN_REVIEW`
+
+## 36. Seleccion offline de fuentes anterior a Map (2026-07-18)
+
+Esta seccion es aditiva y supersede unicamente el comando Search de 35.6, que
+ya fue ejecutado por el usuario. La revision fue completamente offline: no se
+ejecuto Search, Map, Extract, Crawl, Research ni Tavily; no hubo red, lectura
+de credenciales, consumo adicional de creditos, `git add`, commit o push.
+
+### 36.1 Estado Search verificado
+
+- run: `run_20260718_041625`;
+- estado: `AWAITING_OFFLINE_SOURCE_SELECTION`;
+- Search: `10/10` consultas completadas, un intento por consulta;
+- llamadas: `10`;
+- resultados: `49` (`9 x 5` y `1 x 4`);
+- URLs unicas: `41`;
+- dominios unicos: `29`;
+- errores: `0`;
+- retries: `0`;
+- Map/Extract: `0/0` operaciones;
+- presupuesto restante antes de Map: Map `5`, Extract `10`, global `15`.
+
+Rama `main`; `HEAD` y `origin/main` local
+`6a8e129afc1a16c11e36d991f5bd708d9f9f7030`; divergencia `0 0`.
+
+### 36.2 Duplicacion, clasificacion e independencia
+
+Hay ocho filas duplicadas sobre siete URLs repetidas. El post de Reddit en
+`r/xfinity` aparece tres veces; seis URLs aparecen dos veces. Entre URLs
+distintas, dos posts de Indie Hackers conservan un snippet exacto, senal fuerte
+de template o republicacion. Los clusters multi-URL del mismo dominio son:
+Indie Hackers `4`, YouTube `4`, Reddit `3`, Geek Vibes Nation `2`, IPTV Service
+Radar `2`, IssueWire `2` y SlideShare `2`. Compartir plataforma no demuestra
+por si solo misma autoria, pero impide contar esas paginas como publicaciones
+independientes sin revision posterior. Empresa, autor, contacto, codigo de
+afiliado, red empresarial y orden identico de marcas entre dominios distintos
+permanecen no confirmados con evidencia Search.
+
+Reclasificacion offline conservadora de las 41 URLs unicas, basada solo en
+URL, titulo y snippet: A `0`, B `5`, C `23`, D `7`, E `6`. No se concede A
+porque Search no demuestra conjuntamente autoria visible y metodologia. B
+agrupa foros con contexto; C, comparadores/rankings; D, promocion directa; E,
+ruido o uso oportunista de plataformas. Los niveles son de discovery y no
+prueban reputacion, oficialidad, calidad o legalidad.
+
+### 36.3 Fuentes aprobadas para Map
+
+| Prioridad | Dominio | Region / idioma | Nivel | Independence group | Motivo y expectativa | Riesgo principal |
+|---:|---|---|:---:|---|---|---|
+| 1 | `redflagdeals.com` | Norteamerica / en | B | `IG-MAP-01-REDFLAGDEALS-FORUM` | Foro canadiense no basado en ranking; Map puede hallar discusiones y servicios nombrados. | Anecdotico, potencialmente antiguo o promocional. |
+| 2 | `iptvserviceradar.com` | Europa / en | C | `IG-MAP-02-IPTVSERVICERADAR` | Comparador dedicado con varias marcas y paginas por pais. | Sesgo editorial o afiliado; un solo grupo. |
+| 3 | `guru99.com` | Europa / es | C | `IG-MAP-03-GURU99-ES` | Guia estructurada en espanol con navegacion localizada. | Metodologia e independencia no demostradas. |
+| 4 | `tapatalk.com` | Latinoamerica / es | B | `IG-MAP-04-TAPATALK-MEXICO-FORUM` | Foro mexicano contextual, util para nombres y alias regionales. | Semilla de 2020; contenido posiblemente obsoleto. |
+| 5 | `softwaretestinghelp.com` | Multirregion / en | C | `IG-MAP-05-SOFTWARETESTINGHELP` | Lista mundial extensa y jerarquia editorial navegable. | Ranking potencialmente afiliado; discovery solamente. |
+
+Las cinco semillas pertenecen a cinco dominios e independence groups distintos.
+Cubren Norteamerica, Europa, Latinoamerica y multirregion, ademas de ingles y
+espanol. Se evitaron rankings repetidos de Indie Hackers, IssueWire,
+SlideShare, Reddit fuera de contexto y superficies claramente promocionales.
+
+El artefacto requerido por el runner fue actualizado atomicamente en:
+
+`research/output/best_iptv_2026/brand_first_market_universe_1b/search_map_extract_multiregion_pilot_01/run_20260718_041625/source_selection.json`
+
+Conserva el schema exacto
+`brand_first_market_universe_1b_multiregion_pilot.v1`, estado `APPROVED`, cinco
+URLs observadas por Search y un `supporting_row_ids` valido por seleccion. No se
+alteraron plan, registry, raw Search, ledger, manifest, checkpoint, errores ni
+integrity manifest. El runner incorporara el input humano al integrity manifest
+inmediatamente antes de adquirir el cliente de Map.
+
+### 36.4 Preflight offline y siguiente comando
+
+Preflight PASS: schema, cinco supporting row IDs, URLs pertenecientes al
+registry, cinco dominios unicos, niveles A-E, presupuesto Map, contrato CLI,
+estado del checkpoint, integrity con `source_selection.json` como unica entrada
+mutable, guardia de run compatible, resume Map-only, parser PowerShell y
+ausencia de `exit`. Credenciales leidas `0`, clientes creados `0`, operaciones
+de red `0`. `git diff --check` PASS.
+
+Este es el unico bloque PowerShell futuro vigente. No fue ejecutado. Continua
+el run existente, invoca solo `--stage map`, tiene cinco selecciones y no puede
+ejecutar Search ni Extract:
+
+```powershell
+& {
+    $projectRoot = 'C:\Proyectos\IPTV-Playlist-Builder-Premium'
+    $runDir = 'C:\Proyectos\IPTV-Playlist-Builder-Premium\research\output\best_iptv_2026\brand_first_market_universe_1b\search_map_extract_multiregion_pilot_01\run_20260718_041625'
+    Set-Location -LiteralPath $projectRoot
+
+    if (-not (Test-Path -LiteralPath Env:\TAVILY_API_KEY) -or
+        [string]::IsNullOrWhiteSpace($env:TAVILY_API_KEY)) {
+        Write-Error 'TAVILY_API_KEY is unavailable in this PowerShell process. No Map operation was made.'
+        $runnerExitCode = 3
+    }
+    else {
+        $env:PYTHONUTF8 = '1'
+        $env:PYTHONIOENCODING = 'utf-8'
+
+        $runnerOutput = & python -B .\scripts\run_brand_first_1b_multiregion_pilot.py --resume-run $runDir --stage map --approval-token 'BRAND-FIRST-1B-MULTIREGION-PILOT-01' --execution-origin powershell 2>&1
+        $runnerExitCode = $LASTEXITCODE
+        $runnerOutput |
+            Where-Object { $_ -notlike 'RUN_DIR=*' } |
+            ForEach-Object { Write-Output $_ }
+    }
+    Write-Output "RUN_DIR=$runDir"
+    Write-Output "RUNNER_EXIT_CODE=$runnerExitCode"
+    Write-Output 'NEXT_STAGE=OFFLINE_PAGE_SELECTION_BEFORE_EXTRACT'
+}
+```
+
+Dictamen:
+
+`OFFLINE_SOURCE_SELECTION_COMPLETE_PENDING_MAP_EXECUTION`
+
+## 37. Seleccion offline de paginas anterior a Extract (2026-07-18)
+
+Esta seccion es aditiva y supersede unicamente el comando Map de 36.4, que ya
+fue ejecutado por el usuario. La revision fue completamente offline: no se
+ejecuto Search, Map, Extract, Crawl, Research ni Tavily; no hubo red, lectura
+de credenciales, creditos adicionales, `git add`, commit o push.
+
+### 37.1 Estado Map verificado
+
+- run: `run_20260718_041625`;
+- estado: `AWAITING_OFFLINE_EXTRACT_SELECTION`;
+- Search: `10` completadas, sin repeticion;
+- Map: `5/5` completadas, `0` fallidas, un intento por operacion;
+- resultados Map: `0 + 50 + 50 + 0 + 19 = 119` paginas;
+- dominios efectivos: `3`;
+- URLs Map unicas: `119`; duplicados exactos: `0`;
+- errores: `0`; retries: `0`;
+- Extract: `0` operaciones y `0` envelopes;
+- presupuesto antes de Extract: Extract `10`, global `10`.
+
+El ledger contiene cinco `ATTEMPT_RESERVED`, cinco `RAW_EVIDENCE` y cinco
+`COMPLETED` para Map. RedFlagDeals y Tapatalk devolvieron cero paginas;
+IPTV Service Radar y Guru99 devolvieron 50 cada uno, y Software Testing Help
+19. Los outputs historicos de Search y Map permanecieron byte-identicos durante
+esta seleccion.
+
+### 37.2 Analisis y paginas aprobadas
+
+La distribucion efectiva es IPTV Service Radar `50`, Guru99 `50` y Software
+Testing Help `19`. Guru99 contiene 15 pares estructurales raiz/`es`; no se
+seleccionaron ambas copias. Se eligieron ocho paginas, todas nivel C, porque las
+dos fuentes B no produjeron URLs Map. La muestra mantiene tres independence
+groups y cubre Europa, Norteamerica, Latinoamerica, multirregion, ingles y
+espanol.
+
+| # | Dominio | Pagina | Region / idioma | Independence group | Objetivo | Riesgo |
+|---:|---|---|---|---|---|---|
+| 1 | `iptvserviceradar.com` | `/best-iptv-europe-providers` | Europa / en | `IG-MAP-02-IPTVSERVICERADAR` | Ranking amplio europeo y orden de marcas. | Afiliacion; mismo grupo que 2-3. |
+| 2 | `iptvserviceradar.com` | `/best-iptv-brazil-providers` | Latinoamerica / en | `IG-MAP-02-IPTVSERVICERADAR` | Comparar Brasil con Guru99 en espanol. | Template compartido. |
+| 3 | `iptvserviceradar.com` | `/best-iptv-canada-providers-2026` | Norteamerica / en | `IG-MAP-02-IPTVSERVICERADAR` | Ranking Canada y senales 2026. | Actualidad inferida por slug. |
+| 4 | `guru99.com` | `/es/best-iptv-spain.html` | Europa / es | `IG-MAP-03-GURU99-ES` | Tabla/lista localizada en espanol. | Comparador comercial. |
+| 5 | `guru99.com` | `/es/best-iptv-brazil.html` | Latinoamerica / es | `IG-MAP-03-GURU99-ES` | Comparacion cruzada de Brasil. | Localizacion de template. |
+| 6 | `guru99.com` | `/es/best-usa-iptv.html` | Norteamerica / es | `IG-MAP-03-GURU99-ES` | Vista en espanol de marcas USA. | Posible solapamiento con version en ingles. |
+| 7 | `softwaretestinghelp.com` | `/iptv-services-worldwide` | Multirregion / en | `IG-MAP-05-SOFTWARETESTINGHELP` | Lista mundial de tercer publisher. | Ranking afiliado y mezcla regional. |
+| 8 | `softwaretestinghelp.com` | `/best-iptv-usa-service-providers` | Norteamerica / en | `IG-MAP-05-SOFTWARETESTINGHELP` | Comparar USA entre publishers. | Puede solapar la lista mundial. |
+
+Se descartaron `111` paginas: `47` de IPTV Service Radar, `47` de Guru99 y
+`17` de Software Testing Help. Los motivos principales fueron rankings
+regionales adicionales del mismo template, 15 pares Guru99 raiz/es, reviews de
+un solo proveedor, apps/players/dispositivos, paginas genericas o de
+metodologia/categoria, temas de deportes/free trial/reseller y regiones fuera
+del alcance. No se gasto presupuesto en multiples copias del mismo ranking.
+
+### 37.3 Artefacto, preflight y guardias
+
+`extract_selection.json` quedo `APPROVED` con ocho URLs Map unicas. Cada fila
+conserva map row ID, map operation, selection source, raw Map record, semilla,
+mapped URL, dominio, region, idioma, nivel, independence group, motivos,
+riesgos y cadena `maprow_* -> source_*`.
+
+El plan de seleccion usa schema
+`brand_first_market_universe_1b_extract_selection_plan.v1` y hash canonico:
+
+`2a4074133e881507bf2722f90c5e2aa9497f883adfb2f20ec9a7e7e20d584a0d`
+
+Preflight PASS: schema, hash, ocho URLs unicas, ocho referencias Map, ocho
+cadenas de supporting row IDs, presupuesto, UTF-8, secretos `0`, integrity con
+`extract_selection.json` como unica entrada mutable, CLI Extract-only y parser
+PowerShell. Antes y despues del preflight: Search `10`, Map `5`, Extract `0`,
+global `15`; credenciales `0`, clientes `0`, red `0`.
+
+El runner fue endurecido de forma acotada: Search solo puede reanudarse desde
+`SEARCH_READY/SEARCH_IN_PROGRESS`, Map desde
+`AWAITING_OFFLINE_SOURCE_SELECTION/MAP_IN_PROGRESS` y Extract desde
+`AWAITING_OFFLINE_EXTRACT_SELECTION/EXTRACT_IN_PROGRESS`. Una etapa ya
+superada queda `BLOCKED_STAGE` antes de leer credencial o crear cliente. Las
+siete pruebas focalizadas pasan.
+
+Si se ejecutan las ocho selecciones, se usaran `8/10` operaciones Extract y
+`23/25` globales; quedaran dos operaciones sin usar. Extract sigue pendiente.
+
+### 37.4 Unico comando futuro para Extract
+
+Este bloque no fue ejecutado. Continua exclusivamente el run existente e
+invoca solo `--stage extract`:
+
+```powershell
+& {
+    $projectRoot = 'C:\Proyectos\IPTV-Playlist-Builder-Premium'
+    $runDir = 'C:\Proyectos\IPTV-Playlist-Builder-Premium\research\output\best_iptv_2026\brand_first_market_universe_1b\search_map_extract_multiregion_pilot_01\run_20260718_041625'
+    Set-Location -LiteralPath $projectRoot
+
+    if (-not (Test-Path -LiteralPath Env:\TAVILY_API_KEY) -or
+        [string]::IsNullOrWhiteSpace($env:TAVILY_API_KEY)) {
+        Write-Error 'TAVILY_API_KEY is unavailable in this PowerShell process. No Extract operation was made.'
+        $runnerExitCode = 3
+    }
+    else {
+        $env:PYTHONUTF8 = '1'
+        $env:PYTHONIOENCODING = 'utf-8'
+
+        $runnerOutput = & python -B .\scripts\run_brand_first_1b_multiregion_pilot.py --resume-run $runDir --stage extract --approval-token 'BRAND-FIRST-1B-MULTIREGION-PILOT-01' --execution-origin powershell 2>&1
+        $runnerExitCode = $LASTEXITCODE
+        $runnerOutput |
+            Where-Object { $_ -notlike 'RUN_DIR=*' } |
+            ForEach-Object { Write-Output $_ }
+    }
+    Write-Output "RUN_DIR=$runDir"
+    Write-Output "RUNNER_EXIT_CODE=$runnerExitCode"
+    Write-Output 'NEXT_STAGE=OFFLINE_CONSOLIDATION_AND_PILOT_EVALUATION'
+    Write-Output 'DO_NOT_RUN_AGAIN_IF_RUN_DIR_WAS_PRINTED'
+}
+```
+
+Dictamen:
+
+`OFFLINE_PAGE_SELECTION_COMPLETE_PENDING_EXTRACT_EXECUTION`
+
+## 38. Fix minimo del preflight Extract anterior a reserva (2026-07-18)
+
+Esta seccion supersede unicamente el bloque Extract de 37.4. El diagnostico y
+la correccion fueron completamente offline: no se ejecuto Tavily, Search, Map
+ni Extract real; no hubo red, lectura de `TAVILY_API_KEY`, creditos, otro run,
+instalaciones, `git add`, commit o push. Los resultados Search/Map y
+`extract_selection.json` no fueron modificados.
+
+### 38.1 Causa exacta y evidencia
+
+El runner no contiene `return -1`, `sys.exit(-1)` ni un codigo funcional `-1`.
+El `-1` observado fue una terminacion `SystemExit(-1)` que escapaba sin
+normalizar desde la frontera de inicializacion del cliente. `main()` solo
+capturaba `RunnerBlocked`, por lo que PowerShell recibia el codigo nativo `-1`
+sin causa humana.
+
+La secuencia esta acotada por evidencia de disco. El intento actualizo
+`integrity_manifest.json` a `2026-07-18T08:51:00.442067+00:00` e incorporo el
+hash correcto de `extract_selection.json`, de modo que ya habia superado plan,
+seleccion, manifest, checkpoint, integrity y guardia de etapa. En cambio,
+checkpoint, ledger, `extracted_pages.jsonl` y `errors.jsonl` quedaron intactos:
+Search `10`, Map `5`, Extract `0`, global `15`, cero `ATTEMPT_RESERVED` Extract.
+El segundo parseo de seleccion y la creacion en memoria de ocho operaciones
+tambien pasan sobre el run real. La unica frontera restante anterior al primer
+checkpoint Extract era `acquire_client()`.
+
+Una prueba focalizada reproduce exactamente `SystemExit(-1)` en esa frontera:
+antes del fix escapaba; ahora se convierte en
+`BLOCKED_CLIENT_INITIALIZATION`, codigo `5`, con el mensaje de que no se reservo
+ninguna operacion. Integrity, checkpoint y ledger permanecen byte-identicos.
+
+### 38.2 Fix minimo
+
+- codigos definidos: exito `0`, configuracion/integridad `2`, autenticacion
+  `3`, presupuesto `4`, fallo tecnico `5`;
+- lectura/creacion del cliente captura `SystemExit` y excepciones inesperadas,
+  sanitiza la causa y devuelve codigo `5`;
+- `main()` tiene fallback explicito para terminaciones o fallos no previstos;
+- el cliente se construye antes de refrescar integrity, evitando mutar el run
+  si la inicializacion falla;
+- el plan/hash y las referencias Map de `extract_selection.json` se validan;
+- la reserva continua ocurriendo antes de cada llamada;
+- Search y Map superados siguen `BLOCKED_STAGE` antes de credencial/cliente;
+- una seleccion corrupta sigue `BLOCKED_SELECTION` con codigo `2`.
+
+Preflight real offline: hash valido, ocho paginas, ocho operaciones simuladas
+en memoria, secretos `0`, Extract antes/despues `0`, credenciales/clientes/red
+`0`. Fake execution: ocho `ATTEMPT_RESERVED`, ocho llamadas Extract simuladas,
+ocho envelopes, global `23/25`, intentos `1`, retries `0`, UTF-8 PASS. Pruebas
+focalizadas del runner multirregional `10/10` PASS.
+
+### 38.3 Unico bloque futuro corregido
+
+No fue ejecutado. Muestra toda la salida; `NEXT_STAGE` aparece solo con codigo
+`0`, y cualquier fallo termina con
+`EXTRACT_STAGE_FAILED_DO_NOT_RETRY_AUTOMATICALLY`:
+
+```powershell
+& {
+    $projectRoot = 'C:\Proyectos\IPTV-Playlist-Builder-Premium'
+    $runDir = 'C:\Proyectos\IPTV-Playlist-Builder-Premium\research\output\best_iptv_2026\brand_first_market_universe_1b\search_map_extract_multiregion_pilot_01\run_20260718_041625'
+    Set-Location -LiteralPath $projectRoot
+
+    if (-not (Test-Path -LiteralPath Env:\TAVILY_API_KEY) -or
+        [string]::IsNullOrWhiteSpace($env:TAVILY_API_KEY)) {
+        Write-Error 'TAVILY_API_KEY is unavailable in this PowerShell process. No Extract operation was made.'
+        $runnerExitCode = 3
+    }
+    else {
+        $env:PYTHONUTF8 = '1'
+        $env:PYTHONIOENCODING = 'utf-8'
+
+        $runnerOutput = & python -B .\scripts\run_brand_first_1b_multiregion_pilot.py --resume-run $runDir --stage extract --approval-token 'BRAND-FIRST-1B-MULTIREGION-PILOT-01' --execution-origin powershell 2>&1
+        $runnerExitCode = $LASTEXITCODE
+        $runnerOutput | ForEach-Object { Write-Output $_ }
+    }
+
+    Write-Output "RUN_DIR=$runDir"
+    Write-Output "RUNNER_EXIT_CODE=$runnerExitCode"
+    if ($runnerExitCode -eq 0) {
+        Write-Output 'NEXT_STAGE=OFFLINE_CONSOLIDATION_AND_PILOT_EVALUATION'
+        Write-Output 'DO_NOT_RUN_AGAIN_IF_RUN_DIR_WAS_PRINTED'
+    }
+    else {
+        Write-Output 'EXTRACT_STAGE_FAILED_DO_NOT_RETRY_AUTOMATICALLY'
+    }
+}
+```
+
+Dictamen:
+
+`EXTRACT_PREFLIGHT_MINIMAL_FIX_COMPLETE_PENDING_EXECUTION`
+
+## 39. Consolidacion y evaluacion offline final del piloto multirregional (2026-07-18)
+
+Esta seccion es aditiva y supersede el estado pendiente de Extract de 38.3. El
+usuario ejecuto el bloque corregido sobre el mismo `run_20260718_041625` y el
+runner devolvio `RUNNER_EXIT_CODE=0` y
+`NEXT_STAGE=OFFLINE_CONSOLIDATION_AND_PILOT_EVALUATION`. Esta consolidacion no
+ejecuto Tavily, Search, Map, Extract, Crawl ni Research; no uso red, no leyo
+credenciales y no autorizo nuevas llamadas.
+
+### 39.1 Reality check y contabilidad final
+
+- repositorio: `C:\Proyectos\IPTV-Playlist-Builder-Premium`;
+- rama: `main`;
+- `HEAD` y `origin/main` local:
+  `6a8e129afc1a16c11e36d991f5bd708d9f9f7030`;
+- divergencia: `0 0`;
+- manifest: `ACQUISITION_COMPLETED_PENDING_OFFLINE_CONSOLIDATION`;
+- checkpoint: `offline_consolidation`;
+- Search: `10` reservadas y `10` completadas, `49` filas, `41` URLs y `29`
+  dominios unicos;
+- Map: `5` reservadas y `5` completadas, `119` URLs unicas, de las cuales
+  `115` no estaban entre las URLs Search;
+- Extract: `8` reservadas y `8` completadas, `8` envelopes, `8` paginas con
+  contenido, `0` vacias y `0` fallidas;
+- global: `23/25`; quedan `2` operaciones globales y `2` Extract sin usar;
+- errores `0`, retries `0`, Crawl `0`, Research `0`.
+
+Antes de consolidar, el run tenia 19 archivos y hash de arbol
+`5a240ad0fe99d3faf62069ab578bc6290f656f585812599dbeee323cbbf95be1`.
+Tras completar exclusivamente derivados, tiene 24 archivos, 888,313 bytes y
+hash de arbol
+`500aba729cc221982886689a95aa8a2b89dd09f76589fd5215683f072c559e86`.
+
+Los once artefactos protegidos de Search/Map/Extract, checkpoint, ledger,
+selecciones y manifest conservaron exactamente sus hashes de entrada. Su hash
+agregado es
+`6e363fe802634477a670cd08b4a83712bd2958ec490977dc59ac3b709a554c68`.
+El arbol FIX4 autoritativo tambien permanece
+`f21e2f16a7e67fc259328ff7d97520e02ab3bc3f6a33bb5223d3786f299f3b31`.
+
+### 39.2 Marcas y comparacion con FIX4
+
+La comparacion primaria usa el artefacto real
+`run_20260717_051437/02_raw_brand_mentions.csv`: `1,035` filas y SHA-256
+`c17f14925934861e91da53d44a15c7e98979a03a3cab1b65a5acd5d9f7839b8c`.
+Los alias y canonicos FIX4 solo se usaron para explicar normalizaciones, nunca
+para sustituir el universo de 1,035 nombres.
+
+Resultado Extract consolidado:
+
+- menciones brutas: `103`;
+- entidades normalizadas unicas: `56`;
+- candidatos de proveedor: `54`;
+- coincidencias historicas exactas: `21`;
+- coincidencias historicas normalizadas: `5`;
+- variantes posibles que requieren revision: `8`;
+- candidatos nuevos plausibles: `20`;
+- falsos positivos/no objetivo: `2` entidades y `3` menciones (`ORA IPTV
+  Player`, aplicacion; `Fubo TV`, OTT legal fuera del universo objetivo);
+- candidatos repetidos en dos o mas independence groups: `15`;
+- candidatos nuevos repetidos en dos grupos: `4`: `iScreenHD IPTV`,
+  `OneTVBox IPTV`, `SofaIPTV` y `USA LIVE IPTV`.
+
+Las ocho variantes pendientes son `Bunnystream`, `IPTV Harmony`, `IPTV
+Trends`, `Mundo IPTV`, `Stremzi`, `TrendyScreen`, `TV Krooz` y `Worthystream`.
+Se conservaron como
+`POSSIBLE_VARIANT_REQUIRES_REVIEW`: agregar/quitar/reordenar `IPTV` o corregir
+una etiqueta traducida no basta para forzar identidad.
+
+### 39.3 Valor por etapa, independencia y cobertura
+
+Search sirvio para discovery amplio: `4.1` URLs unicas por operacion, aunque
+con ocho filas URL duplicadas y predominio de rankings/promocion. La revision
+por URL unica quedo A/B/C/D/E = `0/5/23/7/6`; el conteo provisional por fila
+fue `0/7/30/12/0`.
+
+Map sirvio de forma selectiva: `23.8` URLs por operacion y `115` URLs nuevas
+frente a Search, pero solo tres de cinco dominios devolvieron paginas; las dos
+fuentes B devolvieron cero. Ocho de 119 paginas se consideraron utiles para
+Extract.
+
+Extract aporto el mayor valor semantico: `12.875` menciones brutas y `2.5`
+candidatos nuevos plausibles por operacion. El contenido completo permitio
+recuperar nombres, alias deformados por traduccion, falsos positivos y orden
+de rankings que titulos y snippets no demostraban.
+
+La muestra cubre Norteamerica, Europa, Latinoamerica y multirregion, en ingles
+y espanol. No es representativa del mercado: las ocho paginas son nivel C y
+pertenecen a solo tres grupos editoriales. El solapamiento interno y las
+estructuras de tabla/ranking indican duplicacion SEO o afiliada probable. La
+repeticion entre dominios es corroboracion de discovery, no prueba de
+propiedad comun, identidad, oficialidad, legalidad, legitimidad, calidad ni
+reputacion.
+
+### 39.4 Dictamen y continuidad
+
+Dictamen global:
+
+`PILOT_SIRVIO_PARCIALMENTE`
+
+El piloto si amplio el universo con `20` candidatos plausiblemente nuevos,
+pero solo cuatro reaparecen en grupos editoriales distintos y todos requieren
+revision de identidad antes de priorizarse. Una marca nueva no equivale a una
+marca valida o recomendable.
+
+Continuidad elegida:
+
+`E. CERRAR 1B Y PASAR A PRIORIZACION DE MARCAS 1C.`
+
+Crawl no se recomienda ahora. Si en el futuro se justificara un smoke test, el
+candidato concreto seria `iptvserviceradar.com`, una operacion y maximo diez
+paginas, para topologia de rankings por pais; el riesgo es consumir casi todo
+en templates equivalentes. Research tampoco se recomienda ahora; una futura
+operacion deberia responder unicamente si registros publicos de autor,
+contacto y disclosure de afiliacion demuestran independencia editorial entre
+los tres publishers. Research no debe usarse para enumerar marcas masivamente
+porque reduce trazabilidad por fila y mezcla discovery con sintesis.
+
+Esta decision no autoriza nuevas llamadas.
+
+### 39.5 Artefactos y validacion
+
+Se completaron atomicamente y en UTF-8 los nueve artefactos previstos y se
+crearon `final_pilot_evaluation.json`, `extracted_page_quality.csv`,
+`stage_value_comparison.csv`, `brand_source_matrix.csv` e
+`historical_match_review.csv`. El script reproducible offline es
+`scripts/consolidate_brand_first_1b_multiregion_pilot.py`.
+
+Validacion: JSON, JSONL, CSV, Markdown, UTF-8, schemas, hashes del integrity
+manifest, 103/103 cadenas de trazabilidad, 56/56 clasificaciones historicas,
+ocho operaciones/envelopes/URLs, secretos `0`, `py_compile`, ejecucion offline
+reproducible y `git diff --check`: PASS. Raw y FIX4 permanecen byte-identicos.
+
+Dictamen tecnico:
+
+`MULTIREGION_PILOT_OFFLINE_EVALUATION_COMPLETE`
+
+## 40. Cierre autoritativo de BRAND-FIRST-MARKET-UNIVERSE-1B (2026-07-18)
+
+Esta seccion es aditiva y prevalece sobre cualquier bloque historico que
+describa 1B, el smoke test, la reconciliacion API, el piloto multirregional o
+su consolidacion como pendientes. No borra esas etapas porque forman la
+trazabilidad reproducible del hito completo.
+
+### 40.1 Genealogia cerrada de 1B
+
+El smoke test CLI, su correccion Unicode y la terminacion API Q3/Q4 quedan
+preservados. Las tres ejecuciones API manuales accidentales fueron
+reconciliadas: no fueron retries internos y contenian las mismas diez URLs y
+scores. El run API autoritativo es `run_20260718_031814`; los runs
+`run_20260718_031913` y `run_20260718_032124` son duplicados accidentales
+preservados. Esta decision mantiene la contabilidad historica de seis llamadas
+API observadas, cero retries internos y usa solo el primer run completo como
+autoridad metodologica.
+
+El piloto multirregional autoritativo es:
+
+`research/output/best_iptv_2026/brand_first_market_universe_1b/search_map_extract_multiregion_pilot_01/run_20260718_041625`
+
+Su contabilidad final es Search `10/10`, Map `5/5`, Extract `8/8`, global
+`23/25`, errores `0` y retries `0`. La consolidacion contiene `103` menciones,
+`56` entidades normalizadas, `54` candidatos de proveedor, `21` matches
+historicos exactos, `5` matches normalizados, `8` variantes pendientes, `20`
+candidatos nuevos y `2` entidades fuera del universo objetivo.
+
+Los cuatro candidatos nuevos repetidos entre grupos editoriales son:
+
+- `iScreenHD IPTV`;
+- `OneTVBox IPTV`;
+- `SofaIPTV`;
+- `USA LIVE IPTV`.
+
+Las ocho paginas Extract pertenecen a fuentes nivel C. La repeticion entre
+publishers es corroboracion de discovery, no prueba identidad, oficialidad,
+legalidad, legitimidad, reputacion ni calidad. Una marca nueva no equivale a
+un proveedor valido o recomendable.
+
+### 40.2 Superficie versionable y validacion de cierre
+
+La trazabilidad reproducible de 1B esta compuesta por:
+
+- runner y prueba del smoke test CLI;
+- runner y prueba de API completion;
+- runner y prueba del piloto multirregional;
+- consolidador offline del piloto;
+- este handoff aditivo.
+
+Los outputs bajo `research/` permanecen ignorados y no deben forzarse en Git.
+La evidencia raw y los runs historicos permanecen fuera del versionamiento y
+byte-identicos.
+
+Validacion final offline: `py_compile` `7/7`; unittest focalizado `46/46`;
+importacion de cuatro scripts con subprocess `0` y sockets `0`; JSON `8`,
+JSONL `4`, CSV `11` y Markdown `1`; UTF-8 `24/24` artefactos del run y `8/8`
+archivos versionables; trazabilidad `103/103`; clasificacion `56/56`;
+integrity `23/23`; raw protegido `11/11`; secretos reales `0`; residuos
+temporales de pruebas 1B `0`; `git diff --check` PASS. El token
+`tvly-secret-must-be-redacted` es un fixture ficticio de dos pruebas de
+redaccion y no una credencial.
+
+Los scripts no ejecutan Tavily al importarse. Crawl y Research conservan
+`authorized=false` y `executable_stage=false`.
+
+### 40.3 Dictamen y siguiente tarea unica
+
+Dictamen global de 1B:
+
+`PILOT_SIRVIO_PARCIALMENTE`
+
+Decision de continuidad:
+
+`E. CERRAR 1B Y PASAR A PRIORIZACION DE MARCAS 1C.`
+
+Crawl y Research no quedan autorizados. No se inicia desarrollo de 1C en esta
+seccion.
+
+Proxima tarea unica:
+
+`BRAND-SEED-PRIORITIZATION-1C`
+
+`OFFLINE-PRIORITY-MODEL-AND-REVIEW-QUEUE-01`
+
+Estado del hito:
+
+`BRAND_FIRST_MARKET_UNIVERSE_1B_READY_FOR_FINAL_VERSIONING`
