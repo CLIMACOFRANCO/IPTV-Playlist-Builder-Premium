@@ -1,12 +1,22 @@
-# HANDOFF - IPTV Playlist Builder Premium
+# HANDOFF — IPTV BRAND-FIRST MARKET UNIVERSE 1B
 
 ## 1. Metadatos
 
-- Fecha: 2026-07-14
+- Fecha de creacion: 2026-07-14
+- Fecha de actualizacion y renombre: 2026-07-18
 - Proyecto: IPTV Playlist Builder Premium
-- Fase: Investigacion comercial IPTV / Due Diligence con Tavily
-- Estado: Phase 2 en curso
+- Fase actual verificada: `BRAND-FIRST-MARKET-UNIVERSE-1B`
+- Subhito actual: `TAVILY-SMOKE-TEST-01`
+- Estado: preparacion offline del runner para ejecucion real desde PowerShell
 - Ruta del proyecto: `C:\Proyectos\IPTV-Playlist-Builder-Premium`
+- Baseline versionado vigente: `cbc0ea5a874a9f94ece643cbe47dd5385ee705ec`
+- Nombre actual del handoff: `docs\HANDOFF_2026-07-18_IPTV_BRAND_FIRST_MARKET_UNIVERSE_1B.md`
+- Nombre historico superado: `docs\HANDOFF_2026-07-14_IPTV_RESEARCH_TAVILY_PHASE2.md`
+
+Este handoff es una guia de continuidad. No es, por si solo, prueba del estado
+real del proyecto. La politica permanente `HANDOFF REALITY-CHECK CONTRACT`
+aparece al final del documento y debe aplicarse antes de continuar cualquier
+hito.
 
 ## 2. Objetivo general
 
@@ -17,7 +27,9 @@ Este trabajo no evalua todavia la calidad real del streaming. Tampoco debe decla
 ## 3. Alcance y limites
 
 - Investigacion basada en fuentes publicas.
-- Tavily se usa como motor de busqueda y extraccion.
+- Tavily puede usarse como motor de adquisicion cuando exista autorizacion
+  expresa. Las llamadas reales se ejecutan desde PowerShell conforme al
+  `TAVILY EXECUTION CONTRACT`; Codex prepara y audita offline.
 - Una aparicion aislada en rankings no es prueba suficiente.
 - M3U, Xtream, APK o cripto no son prueba automatica de ilegalidad.
 - Se deben separar afirmaciones comerciales, testimonios, fuentes independientes e inferencias tecnicas.
@@ -40,7 +52,18 @@ Este trabajo no evalua todavia la calidad real del streaming. Tampoco debe decla
 9. Rediseno V2.
 10. Correccion del uso de Tavily SDK.
 11. Ejecucion correcta del piloto V2.
-12. Estado actual: auditoria de las 50 evidencias aceptadas y 5 ambiguas.
+12. Auditoria de las 50 evidencias aceptadas y 5 ambiguas.
+13. Cierre V3/V4 y cierre forense Voco preservados como historia metodologica.
+14. Reorientacion oficial a BRAND-FIRST en `dbff5ac`.
+15. Ejecucion offline 1A y secuencia: run inicial, FIX1, FIX2, FIX3 y FIX4.
+16. Inicio y cancelacion segura de FIX5; no se creo un run FIX5.
+17. Cierre documental de 1A y congelacion del baseline FIX4.
+18. Commit y push de cierre: `cbc0ea5`.
+19. Apertura de `BRAND-FIRST-MARKET-UNIVERSE-1B`.
+20. Dos intentos bloqueados del smoke test: `run_20260717_235220` y
+    `run_20260718_000536`; ambos consumieron cero llamadas Tavily.
+21. Estado actual: preparar offline un runner auditable y entregar un comando
+    PowerShell exacto para la ejecucion real.
 
 ## 5. Descubrimiento inicial con Tavily
 
@@ -568,11 +591,17 @@ Ya fueron generadas:
 - `scripts\audit_tavily_batch1_quality.py`
 - `scripts\audit_pilot_v2_accepted_evidence.py`
 
-## 18. Script vigente para modificar
+## 18. Script historico para modificar (SUPERADO)
+
+Esta instruccion fue completada y reemplazada por el cierre BRAND-FIRST 1A.
+No debe ejecutarse como tarea vigente.
 
 - `scripts\run_top50_tavily_due_diligence.py`
 
-## 19. Decisiones tecnicas vigentes
+## 19. Decisiones tecnicas historicas (NO VIGENTES COMO PROXIMA TAREA)
+
+Estas decisiones describen la etapa V2/V3. Se preservan como trazabilidad y
+quedan subordinadas a las secciones 27-29 y a los dos contratos permanentes.
 
 - Usar SDK oficial Tavily.
 - No usar requests manuales.
@@ -600,9 +629,9 @@ Ya fueron generadas:
 - Riesgo de homonimos.
 - Riesgo confirmado de revendedores y afiliados aceptados como evidencia valida.
 
-## 21. Estado operativo final
+## 21. Estado operativo historico de la fase V2/V3
 
-FASE 2 EN CURSO.
+Estado historico: FASE 2 EN CURSO en el momento de esta seccion.
 
 Piloto V2 tecnico completado.
 Auditoria real completada.
@@ -615,7 +644,7 @@ Siguiente paso unico historico (completado por V3/V4):
 
 - redisenar la logica de aceptacion V3 sin usar Tavily.
 
-## 22. Comandos utiles
+## 22. Comandos utiles historicos (NO EJECUTAR COMO SIGUIENTE PASO)
 
 Comandos de lectura y validacion, sin secretos:
 
@@ -627,7 +656,7 @@ python -m py_compile .\scripts\run_top50_tavily_due_diligence.py
 python .\scripts\run_top50_tavily_due_diligence.py --pilot-brands "Krooz TV,Voco TV,DigitaLizard IPTV,Free Go TV,Sonix IPTV" --pause-seconds 1 --dry-run
 ```
 
-## 23. Prompt de inicio para el nuevo hilo
+## 23. Prompt historico para un nuevo hilo (SUPERADO POR LA SECCION 29)
 
 Bloque listo para copiar y pegar:
 
@@ -636,7 +665,7 @@ Continuamos el proyecto IPTV Playlist Builder Premium.
 
 Lee primero:
 
-docs/HANDOFF_2026-07-14_IPTV_RESEARCH_TAVILY_PHASE2.md
+docs/HANDOFF_2026-07-18_IPTV_BRAND_FIRST_MARKET_UNIVERSE_1B.md
 
 No reproceses investigaciones.
 No repitas consultas Tavily.
@@ -857,7 +886,7 @@ Archivos versionables actuales:
 
 - `scripts/run_targeted_external_verification_v1.py`;
 - `tests/test_run_targeted_external_verification_v1.py`;
-- `docs/HANDOFF_2026-07-14_IPTV_RESEARCH_TAVILY_PHASE2.md`.
+- `docs/HANDOFF_2026-07-18_IPTV_BRAND_FIRST_MARKET_UNIVERSE_1B.md`.
 
 El runner ahora detecta localmente cualquier run hermano final completado a 40/40 antes de crear output o inicializar red. Esto bloquea la repeticion de los dos accesos finales. Se mantienen la omision de consultas Tavily ya completadas, contadores de requests fisicos separados de eventos de redirect, `supporting_row_ids` obligatorios y la prohibicion de clasificaciones oficiales.
 
@@ -1142,7 +1171,7 @@ No se autoriza todavía:
 - nuevas consultas;
 - selección definitiva de una marca.
 
-### 27.12 Nuevo roadmap aprobado
+### 27.12 Roadmap aprobado en 2026-07-16 (HISTORICO; 1A YA COMPLETADA)
 
 **BRAND-FIRST-MARKET-UNIVERSE-1A**: reconstrucción y auditoría completamente offline del universo histórico de marcas.
 
@@ -1154,9 +1183,11 @@ No se autoriza todavía:
 
 `Map → revisión humana → Extract → Search de vacíos → V4 → operador, reseller, clon o UNRESOLVED`.
 
-### 27.13 Próxima tarea única vigente
+### 27.13 Tarea historica 1A (COMPLETADA Y SUPERADA)
 
-La próxima tarea única es `BRAND-FIRST-MARKET-UNIVERSE-1A`.
+La tarea que era proxima en 2026-07-16 fue
+`BRAND-FIRST-MARKET-UNIVERSE-1A`. Quedo completada, congelada, committeada y
+pusheada en `cbc0ea5`; no debe ejecutarse de nuevo.
 
 Objetivo: reconstruir completamente offline el universo histórico ya existente y hacer visible:
 
@@ -1188,9 +1219,10 @@ No seleccionar todavía una marca para investigación externa.
 - `research/output/best_iptv_2026/top50_due_diligence_report_20260713.md`
 - `research/output/best_iptv_2026/top50_query_plan_20260713.json`
 
-### 27.15 Entregables previstos para 1A
+### 27.15 Entregables de 1A (CREADOS; PLAN HISTORICO COMPLETADO)
 
-Los siguientes son entregables planificados, no artefactos ya creados:
+Los siguientes se planificaron en esta seccion y despues fueron creados en el
+run autoritativo `run_20260717_051437`:
 
 1. `01_source_inventory.csv`
 2. `02_raw_brand_mentions.csv`
@@ -1212,15 +1244,17 @@ Los siguientes son entregables planificados, no artefactos ya creados:
 18. `18_integrity_manifest.json`
 19. `19_runner_validation_report.md`
 
-Artefactos versionables previstos:
+Artefactos versionables que fueron creados y versionados:
 
 - `scripts/build_brand_first_market_universe.py`
 - `tests/test_build_brand_first_market_universe.py`
 - `docs/BRAND_FIRST_RESEARCH_METHOD.md`
 
-Estos archivos todavía no existen por decisión de este handoff.
+Estos archivos existen, estan versionados y forman parte del commit de cierre
+`cbc0ea5a874a9f94ece643cbe47dd5385ee705ec`. La frase historica que afirmaba
+que no existian quedo superada por Git y el disco.
 
-### 27.16 Restricciones de BRAND-FIRST-MARKET-UNIVERSE-1A
+### 27.16 Restricciones historicas aplicadas a BRAND-FIRST-MARKET-UNIVERSE-1A
 
 - cero Tavily;
 - cero HTTP;
@@ -1238,7 +1272,7 @@ Estos archivos todavía no existen por decisión de este handoff.
 - mantener `supporting_row_ids`;
 - no modificar PID 28448.
 
-### 27.17 Criterios de aceptación de 1A
+### 27.17 Criterios historicos de aceptacion de 1A
 
 Un PASS exige:
 
@@ -1261,18 +1295,271 @@ Dictámenes permitidos:
 - `BRAND_FIRST_MARKET_UNIVERSE_INSUFFICIENT_TRACEABILITY`
 - `BRAND_FIRST_MARKET_UNIVERSE_BLOCKED_BY_INTEGRITY`
 
+### 27.18 Ejecucion y cierre verificado de 1A (2026-07-17)
+
+Estado oficial verificado:
+
+`BRAND_FIRST_MARKET_UNIVERSE_1A_OFFLINE_BASELINE_FROZEN_WITH_KNOWN_LIMITATIONS`
+
+El documento versionado
+`docs/BRAND_FIRST_1A_OFFLINE_BASELINE_CLOSURE.md`, el manifest, los reportes y
+los hashes del run final confirman:
+
+- genealogia: 1.035 menciones originales -> 757 registros canonicos depurados
+  -> 692 `PROVIDER` historicos -> Top 50 historico exacto;
+- 175 `PLAUSIBLE_BRAND`;
+- 0 `TRACEABLE_FOR_FUTURE_PRIORITIZATION`;
+- 0 adjudication-ready y 0 filas publicadas;
+- 19 entregables;
+- 151 pruebas registradas como PASS;
+- 44.625 referencias validadas;
+- 692 filas recomputadas sin errores;
+- hashes de los 18 entregables no circulares verificados;
+- hashes de los 10 insumos autoritativos sin cambios;
+- cero red, cero seleccion externa y cero lectura de credenciales en 1A.
+
+El cero significa exclusivamente: **cero marcas publicables bajo el corpus
+local y los criterios FIX4**. No significa cero marcas reales, cero proveedores,
+ilegalidad, mala calidad comercial, ranking definitivo, validacion externa ni
+adjudicacion humana.
+
+### 27.19 Inventario y cronologia real de runs 1A
+
+Se encontraron fisicamente 12 runs, todos ignorados por Git y preservados:
+
+| Etapa | Run | Estado |
+|---|---|---|
+| Inicial | `run_20260716_162527` | historico inicial |
+| FIX1 intermedio | `run_20260716_172455` | intermedio |
+| FIX1 intermedio | `run_20260716_173115` | intermedio |
+| FIX1 | `run_20260716_173407` | cierre historico FIX1 |
+| FIX2 intermedio | `run_20260716_210112` | intermedio |
+| FIX2 | `run_20260716_210719` | cierre historico FIX2 |
+| FIX3 intermedio | `run_20260717_001010` | intermedio |
+| FIX3 intermedio | `run_20260717_001334` | intermedio |
+| FIX3 | `run_20260717_002331` | cierre historico FIX3 |
+| FIX4 intermedio | `run_20260717_050245` | intermedio |
+| FIX4 intermedio | `run_20260717_050956` | intermedio |
+| FIX4 | `run_20260717_051437` | autoritativo y congelado |
+
+Cada run contiene 19 archivos, incluido manifest y reportes; no se encontraron
+checkpoints en esta familia. El run autoritativo no lo es por ser el ultimo,
+sino porque lo identifican el documento de cierre versionado, su manifest, las
+validaciones PASS y el commit de cierre.
+
+Hash logico FIX4 verificado:
+
+`B2D3B232EE3FC0C345D48816B230A6A30D0DA67CC2ED53A4175B474D3FF40FF7`
+
+El encabezado historico del reporte final aun dice `FIX3`; no cambia la
+autoridad FIX4, que queda resuelta por el documento de cierre, el manifest, la
+calibracion FIX4 presente en metodo/runner/tests y el hash logico congelado.
+
+### 27.20 FIX5 cancelado y regla de reapertura
+
+FIX5 fue iniciado y detenido antes de producir un run. El backup fisico existe
+en:
+
+`C:\Proyectos\IPTV-Playlist-Builder-Premium_FIX5_ABORTED_20260717_053940`
+
+La comparacion SHA-256 confirma que:
+
+- el runner actual difiere del runner abortado respaldado;
+- el test actual coincide exactamente con el test respaldado;
+- el metodo actual coincide exactamente con el metodo respaldado;
+- no existe ningun run FIX5 bajo el inventario 1A;
+- el hash logico final restaurado coincide con FIX4.
+
+El documento de cierre registra que los cambios parciales se deshicieron con
+la funcion Deshacer de Codex. La cifra visual aproximada `+230/-31`, la ausencia
+historica de procesos Python justo despues de la interrupcion y la afirmacion de
+que no se usaron `git reset`, `git restore` o `git clean` no pueden demostrarse
+retrospectivamente mediante el arbol Git o los artefactos actuales; se conservan
+solo como contexto reportado, no como prueba forense independiente.
+
+FIX5 queda cancelado. No se autoriza FIX6 por perfeccionismo. 1A solo puede
+reabrirse si aparece un defecto material demostrado que cambie decisiones o
+resultados; no la reabren refactors, nombres, cosmetica, pruebas sin impacto u
+optimizaciones innecesarias.
+
+### 27.21 Cierre documental, commit y push de 1A
+
+El commit `cbc0ea5a874a9f94ece643cbe47dd5385ee705ec`, mensaje
+`research: freeze brand-first 1A offline baseline`, agrego exactamente:
+
+- `docs/BRAND_FIRST_1A_OFFLINE_BASELINE_CLOSURE.md`;
+- `docs/BRAND_FIRST_RESEARCH_METHOD.md`;
+- `scripts/build_brand_first_market_universe.py`;
+- `tests/test_build_brand_first_market_universe.py`.
+
+Estado Git verificado el 2026-07-18 antes de esta actualizacion:
+
+- rama: `main`;
+- `HEAD`: `cbc0ea5a874a9f94ece643cbe47dd5385ee705ec`;
+- `origin/main`: `cbc0ea5a874a9f94ece643cbe47dd5385ee705ec`;
+- divergencia: `0 0`;
+- working tree: limpio.
+
+Este commit reemplaza a `dbff5ac` como baseline operativo, sin borrar ni
+reescribir la historia anterior.
+
+### 27.22 Apertura real de 1B y smoke test pendiente
+
+Fase actual: `BRAND-FIRST-MARKET-UNIVERSE-1B`.
+
+Subhito: `TAVILY-SMOKE-TEST-01`.
+
+Objetivo: comprobar si Tavily Search aporta evidencia web nueva, actual,
+diferenciada y trazable para una marca candidata y un control negativo, sin
+crear ranking, aprobar proveedores, decidir legalidad ni reabrir 1A.
+
+Consultas congeladas:
+
+1. `"DigitaLizard IPTV" official website company`
+2. `"DigitaLizard IPTV" reviews app reseller operator`
+3. `"IPTV Smarters Pro" official website player application`
+4. `"IPTV Smarters Pro" IPTV subscription provider`
+
+Presupuesto: cuatro llamadas Search, `depth basic`, maximo cinco resultados por
+consulta y maximo teorico de 20 resultados. Extract, Map, Crawl, Research y
+Agent Skills permanecen fuera de alcance.
+
+### 27.23 Intentos bloqueados de 1B preservados
+
+El inventario fisico contiene dos runs bloqueados, no uno:
+
+- `run_20260717_235220`;
+- `run_20260718_000536`.
+
+Ambos contienen cinco archivos y sus manifests/reportes declaran:
+
+- `BRAND_FIRST_1B_TAVILY_SMOKE_TEST_BLOCKED_NO_API_KEY`;
+- 0 busquedas;
+- 0 llamadas consumidas;
+- 0 resultados, URLs y dominios;
+- cero archivos versionados modificados;
+- cero commit y cero push.
+
+No demuestran fallo de Tavily, clave invalida ni fallo de conectividad. Solo
+demuestran que esas tareas Codex no recibieron `TAVILY_API_KEY` y aplicaron el
+stop condition. Ninguno debe reutilizarse ni modificarse. El smoke test real
+debe crear un run nuevo.
+
+Los artefactos de `run_20260718_000536` verifican Python 3.12.10 de forma
+indirecta mediante el manifest 1A, `tavily-cli 0.1.4`, la ayuda admitida por la
+CLI y la ausencia de busquedas. La autenticacion `tvly --status` en una sesion
+PowerShell y la conectividad a `api.tavily.com:443` fueron reportadas fuera del
+repositorio, pero no tienen log o artefacto local verificable en este reality
+check. Deben reconfirmarse en PowerShell antes de la ejecucion real, sin copiar
+la clave a Codex.
+
+## TAVILY EXECUTION CONTRACT — LECCIÓN APRENDIDA OBLIGATORIA
+
+1. ChatGPT diseña objetivo, consultas, presupuesto, stop conditions, criterios
+   de aceptacion y prompt para Codex.
+2. Codex prepara offline runner, tests, dry-run, carpetas, manifest, ledger y
+   comando PowerShell exacto.
+3. Codex no ejecuta las llamadas Tavily reales.
+4. Codex no necesita recibir `TAVILY_API_KEY`.
+5. No se resuelve el flujo entregando la clave a Codex.
+6. No se crea ni modifica por defecto
+   `C:\Users\Franco Traders\.codex\.env`.
+7. PowerShell ejecuta en una sesion donde `tvly --status` confirme
+   autenticacion, con el comando exacto, presupuesto, limite de llamadas, stop
+   conditions y persistencia de JSON/logs.
+8. Despues, Codex audita offline los outputs y ChatGPT interpreta si SIRVIO,
+   SIRVIO PARCIALMENTE o NO SIRVIO.
+9. Si Codex informa `TAVILY_API_KEY NOT_AVAILABLE`, eso no invalida una clave
+   existente en PowerShell ni autoriza reconfigurar secretos, crear `.env`,
+   copiar la clave o cambiar este flujo.
+10. Tavily real se ejecuta desde PowerShell. Codex prepara, pero no consume
+    Tavily.
+
+## HANDOFF REALITY-CHECK CONTRACT
+
+1. El handoff es una guia de continuidad, no una base de datos
+   autoautenticada.
+2. Al comenzar cada hilo o sesion se verifican rama, HEAD, `origin/main`,
+   divergencia, working tree, git log reciente, historial de archivos criticos,
+   arbol versionado, archivos y runs reales, manifests, hashes, checkpoints y
+   reportes.
+3. Git y la evidencia material del disco prevalecen sobre afirmaciones
+   desactualizadas del handoff.
+4. Un nuevo hilo no ejecuta la proxima tarea descrita hasta confirmar que sigue
+   pendiente.
+5. Todo archivo descrito como planificado se comprueba en Git y disco.
+6. Todo commit descrito como esperado se compara con HEAD y `origin/main`.
+7. Todo run descrito como ultimo se contrasta con el inventario fisico, sus
+   manifests y sus reportes; el timestamp no confiere autoridad.
+8. Ante contradiccion, no se altera el proyecto para hacer coincidir el
+   handoff: se corrige el handoff, se preserva el dato anterior como historico y
+   se documenta la evidencia resolutiva.
+9. La verificacion ocurre antes de modificar codigo, ejecutar runners, consumir
+   Tavily, instalar paquetes, crear commits o continuar un hito.
+10. Esta politica es permanente y debe aparecer en todos los handoffs futuros
+    del proyecto.
+
+### 27.24 Terminologia permanente
+
+- VALIDACION AUTOMATICA
+- AUDITORIA SEMANTICA ASISTIDA POR IA
+- ADJUDICACION HUMANA
+- APROBACION HUMANA FINAL
+
+Una evaluacion realizada solo por IA no se denomina revision humana. No se
+afirma que el usuario adjudico un resultado sin una decision expresa.
+
+### 27.25 Estado global y proxima tarea unica
+
+- preparacion metodologica: completada;
+- cierre de 1A: completado;
+- diseño del smoke test: completado;
+- CLI y contrato PowerShell: preparados documentalmente; autenticacion y red
+  deben reconfirmarse en la sesion de ejecucion;
+- ejecucion Tavily real de 1B: pendiente;
+- analisis de resultados: pendiente.
+
+Proxima tarea unica:
+
+`BRAND-FIRST-MARKET-UNIVERSE-1B / TAVILY-SMOKE-TEST-01 / OFFLINE-RUNNER-PREPARATION`
+
+Codex debe preparar offline el runner auditable, presupuesto de cuatro llamadas,
+stop conditions, JSON, CSV, reporte, ledger y manifest; validar `py_compile`,
+tests y dry-run sin red; y entregar un unico comando PowerShell exacto. No debe
+leer la API key ni ejecutar Tavily. El usuario ejecutara despues el comando en
+PowerShell y Codex auditara el nuevo run offline.
+
+Estimacion orientativa, no promesa: 10-20 minutos para preparar el runner, 2-10
+minutos para ejecutar cuatro llamadas, 10-20 minutos para normalizar/revisar,
+25-50 minutos totales para el smoke test y 45-90 minutos adicionales para un
+micro-piloto posterior.
+
 ## 28. Estado operativo vigente para el próximo hilo
 
-- rama esperada: `main`;
-- HEAD y `origin/main` esperados antes de esta actualización: `adf7c4c01aa0f105e998c49e9fa2523d06075060`;
-- cierre Voco publicado: `1e59b4ea9372349d63d6b615a08172cac68bdfed`;
-- priorización de clústeres publicada: `adf7c4c01aa0f105e998c49e9fa2523d06075060`;
-- lote 2 bloqueado;
-- Voco cerrado y sin presupuesto restante;
-- Agent Skills no instaladas;
-- próximo hito: `BRAND-FIRST-MARKET-UNIVERSE-1A`.
+- repositorio verificado: `C:\Proyectos\IPTV-Playlist-Builder-Premium`;
+- rama verificada antes de esta actualizacion: `main`;
+- `HEAD` verificado: `cbc0ea5a874a9f94ece643cbe47dd5385ee705ec`;
+- `origin/main` local verificado: `cbc0ea5a874a9f94ece643cbe47dd5385ee705ec`;
+- divergencia verificada: `0 0`;
+- working tree inicial: limpio;
+- 1A: cerrada, congelada, committeada y pusheada;
+- run 1A autoritativo: `run_20260717_051437`;
+- hash logico FIX4: `B2D3B232EE3FC0C345D48816B230A6A30D0DA67CC2ED53A4175B474D3FF40FF7`;
+- FIX5: cancelado; no existe run FIX5;
+- fase actual: `BRAND-FIRST-MARKET-UNIVERSE-1B`;
+- subhito: `TAVILY-SMOKE-TEST-01`;
+- runs 1B bloqueados preservados: `run_20260717_235220` y
+  `run_20260718_000536`;
+- ejecucion Tavily real: pendiente;
+- lugar de ejecucion Tavily real: PowerShell, no Codex;
+- proxima tarea unica: `OFFLINE-RUNNER-PREPARATION`;
+- lote 2, Extract, Map, Crawl, Research, ranking y adjudicacion de proveedor:
+  no autorizados.
 
-Después de modificar este handoff, el working tree debe quedar con un único archivo modificado y sin commit, salvo autorización posterior.
+La referencia `origin/main` es la referencia local observada; este reality check
+no uso `git fetch` ni red. Despues de esta actualizacion el working tree debe
+contener exclusivamente este handoff modificado y permanecer sin commit hasta
+revision humana.
 
 ## 29. Prompt vigente para iniciar el nuevo hilo
 
@@ -1283,71 +1570,149 @@ Directorio:
 
 C:\Proyectos\IPTV-Playlist-Builder-Premium
 
-Lee primero y toma como fuente autoritativa:
+Lee primero como documento de continuidad, pero valida su vigencia contra Git
+y el disco antes de tratarlo como fuente autoritativa:
 
-docs\HANDOFF_2026-07-14_IPTV_RESEARCH_TAVILY_PHASE2.md
+docs\HANDOFF_2026-07-18_IPTV_BRAND_FIRST_MARKET_UNIVERSE_1B.md
 
-Decisión estratégica vigente:
+REGLA DE INICIO OBLIGATORIA — HANDOFF REALITY-CHECK CONTRACT
 
-El proyecto adopta oficialmente un enfoque BRAND-FIRST.
+No confies ciegamente en el handoff.
 
-La marca es la unidad primaria de descubrimiento y la semilla de
-investigación.
+Antes de ejecutar cualquier tarea:
 
-Los dominios son activos candidatos alrededor de una marca y no
-constituyen por sí solos familias empresariales.
+1. compara el handoff contra:
+   - git log;
+   - git status;
+   - HEAD;
+   - origin/main local;
+   - divergencia;
+   - historial de archivos criticos;
+   - arbol Git;
+   - archivos reales en disco;
+   - runs reales;
+   - manifests;
+   - hashes;
+   - checkpoints;
+   - reportes;
 
-La entidad jurídica solo puede ser una conclusión posterior de
-atribución.
+2. confirma que la proxima tarea descrita sigue pendiente;
 
-El hito anterior V4_OFFLINE_CANDIDATE_PRIORITIZATION_COMPLETE se conserva,
-pero debe interpretarse únicamente como priorización exploratoria de diez
-clústeres nominales de dominios derivados principalmente de Digitalizard,
-Krooz y Sonix.
+3. identifica trabajo realizado despues de la ultima actualizacion;
 
-No fue una comparación entre 50 marcas ni diez familias empresariales.
+4. si hay contradiccion, Git y la evidencia material del disco prevalecen;
+   no alteres el proyecto para hacer coincidir el handoff;
 
-Se suspende:
+5. detente si la realidad no puede reconciliarse.
 
-V4-OFFLINE-FAMILY-CONSOLIDATION-1B
+Dictamenes iniciales permitidos:
 
-Nuevo hito:
+HANDOFF_REALITY_CHECK_PASS
+HANDOFF_REALITY_CHECK_REQUIRES_UPDATE
+HANDOFF_REALITY_CHECK_BLOCKED_BY_UNRECONCILED_STATE
 
-BRAND-FIRST-MARKET-UNIVERSE-1A
+FASE ACTUAL ESPERADA
 
-Objetivo:
+BRAND-FIRST-MARKET-UNIVERSE-1B
+TAVILY-SMOKE-TEST-01
 
-Reconstruir completamente offline el universo histórico de marcas:
+BASELINE CERRADA
 
-- 1.035 nombres originales;
-- 757 registros depurados;
-- 692 PROVIDER;
-- Top 50 histórico;
-- aliases;
-- fuentes;
-- recurrencia;
-- grupos independientes;
-- exclusiones;
-- selección;
-- sesgos;
-- trazabilidad.
+1A esta cerrada, committeada y pusheada.
 
-Debemos ver y auditar todas las marcas, no solamente las cinco del piloto.
+Commit esperado, sujeto a verificacion:
 
-Restricciones:
+cbc0ea5a874a9f94ece643cbe47dd5385ee705ec
 
-- cero Tavily;
-- cero HTTP, DNS o sockets;
-- cero lectura de credenciales;
-- no instalar Agent Skills;
-- no abrir lote 2;
-- no modificar artefactos históricos;
-- no declarar dominios oficiales;
-- no hacer commit ni push sin revisión humana.
+Estado esperado, sujeto a verificacion:
 
-Primera tarea:
+- rama main;
+- HEAD = origin/main local;
+- divergencia 0 0;
+- working tree limpio.
 
-Diseñar y ejecutar una auditoría offline reproducible del universo completo
-de marcas y producir un ranking histórico y otro recalibrado, sin
-seleccionar todavía la próxima marca para investigación externa.
+No reabrir 1A. No ejecutar FIX5 ni iniciar nuevos FIX offline.
+
+RUN AUTORITATIVO 1A ESPERADO
+
+run_20260717_051437
+
+Hash logico esperado:
+
+B2D3B232EE3FC0C345D48816B230A6A30D0DA67CC2ED53A4175B474D3FF40FF7
+
+Interpretacion del cero: cero marcas publicables bajo el corpus local y FIX4.
+No significa cero marcas reales en el mercado.
+
+TAVILY EXECUTION CONTRACT — LECCION APRENDIDA OBLIGATORIA
+
+ChatGPT diseña -> Codex prepara y valida offline -> Codex entrega comando
+PowerShell -> PowerShell ejecuta Tavily -> Codex y ChatGPT auditan offline.
+
+Codex no ejecuta Tavily real, no necesita TAVILY_API_KEY y no debe recibirla.
+No crear ni modificar:
+
+C:\Users\Franco Traders\.codex\.env
+
+PowerShell debe reconfirmar `tvly --status` en la sesion que ejecutara el
+comando. Los artefactos locales verifican Python 3.12.10 y tavily-cli 0.1.4,
+pero este reality check no pudo verificar desde Git o disco la autenticacion ni
+la conectividad reportadas fuera del repositorio.
+
+RUNS BLOQUEADOS A PRESERVAR
+
+run_20260717_235220
+run_20260718_000536
+
+Ambos tuvieron cero busquedas, cero llamadas y cero resultados porque las
+tareas Codex no heredaron la variable. No reutilizarlos ni modificarlos.
+
+SMOKE TEST REAL PENDIENTE
+
+DigitaLizard IPTV:
+
+Q1: "DigitaLizard IPTV" official website company
+Q2: "DigitaLizard IPTV" reviews app reseller operator
+
+IPTV Smarters Pro:
+
+Q3: "IPTV Smarters Pro" official website player application
+Q4: "IPTV Smarters Pro" IPTV subscription provider
+
+Presupuesto:
+
+- 4 llamadas Search;
+- depth basic;
+- maximo 5 resultados por consulta;
+- sin Extract, Map, Crawl, Research ni Agent Skills.
+
+PROXIMA TAREA UNICA
+
+BRAND-FIRST-MARKET-UNIVERSE-1B
+TAVILY-SMOKE-TEST-01
+OFFLINE-RUNNER-PREPARATION
+
+Codex debe:
+
+- no usar red;
+- no leer la API key;
+- no ejecutar Tavily;
+- preparar un runner offline auditable;
+- implementar presupuesto y stop conditions;
+- preparar JSON, CSV, reporte, ledger y manifest;
+- validar py_compile, tests y dry-run sin red;
+- entregar un unico comando PowerShell exacto;
+- no hacer git add, commit ni push.
+
+Despues, el usuario ejecutara el comando desde PowerShell y se auditara el run
+nuevo offline.
+
+No iniciar Extract, Map, Crawl, Research, investigacion de 692 marcas, ranking,
+adjudicacion de proveedor ni declaraciones de legalidad.
+
+Antes de cada prompt para Codex, indicar modelo, razonamiento, velocidad y
+estado Max/Ultra.
+
+Objetivo inmediato: ejecutar el smoke test real desde PowerShell y dictaminar
+SIRVIO, SIRVIO PARCIALMENTE o NO SIRVIO.
 ```
